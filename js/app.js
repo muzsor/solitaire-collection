@@ -53,13 +53,21 @@ function saveSettings() {
 // 桌面顏色對應的實際色碼，要和 style.css 的 --table 一致
 const TABLE_COLORS = { green: '#23613c', blue: '#234a73', gray: '#2b2e33', purple: '#45305f' };
 
+// 標題列是桌面色再疊 24% 黑（style.css 的 --bar），算出實際色給 theme-color，
+// 這樣 Safari 塗在狀態列那一區的顏色會和標題列連成一塊
+function headerColor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = (v) => Math.round(v * 0.76).toString(16).padStart(2, '0');
+  return '#' + f((n >> 16) & 255) + f((n >> 8) & 255) + f(n & 255);
+}
+
 function applySettings() {
   // 寫在 <html> 上，iPhone 的狀態列與底部安全區才會跟著變色
   const root = document.documentElement;
   root.dataset.table = settings.table;
   root.dataset.back = settings.cardBack;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = TABLE_COLORS[settings.table] || TABLE_COLORS.green;
+  if (meta) meta.content = headerColor(TABLE_COLORS[settings.table] || TABLE_COLORS.green);
   document.body.classList.toggle('big-font', settings.bigFont);
   document.body.classList.toggle('no-timer', !settings.showTimer);
   Sound.setSoundEnabled(settings.sound);
@@ -812,6 +820,9 @@ function registerSW() {
 
 // ---------- 啟動 ----------
 function init() {
+  // 已加入主畫面（獨立模式）時，隱藏「加入主畫面」提示
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  document.body.classList.toggle('standalone', standalone);
   applySettings();
   renderer = new Renderer($('#table'), () => settings);
 

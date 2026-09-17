@@ -1,4 +1,6 @@
 :root {
+  /* 底部安全區：Safari 模式照系統值（含浮動工具列）；獨立模式 iOS 27 會多留一段工具列空間，上限收到 40px */
+  --safe-bottom: env(safe-area-inset-bottom);
   --table: #23613c;
   --bar: rgba(0, 0, 0, 0.24);
   --back: #2b57a8;
@@ -10,6 +12,12 @@
 :root[data-back='red'] { --back: #b03030; }
 :root[data-back='black'] { --back: #333; }
 :root[data-back='green'] { --back: #2a7a4a; }
+
+/* 獨立模式（加入主畫面）：iOS 27 回報的底部安全區含工具列空間，收到 40px 就夠避開主畫面指示條 */
+.standalone { --safe-bottom: min(env(safe-area-inset-bottom), 40px); }
+@media (display-mode: standalone) {
+  :root { --safe-bottom: min(env(safe-area-inset-bottom), 40px); }
+}
 
 /* touch-action 不會繼承，所以每個元素都設，關掉 iPhone Safari 的雙擊放大 */
 * { box-sizing: border-box; touch-action: manipulation; }
@@ -67,7 +75,7 @@ button.icon {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 12px calc(env(safe-area-inset-right) + 12px) calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 12px);
+  padding: 12px calc(env(safe-area-inset-right) + 12px) 12px calc(env(safe-area-inset-left) + 12px);
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -87,7 +95,18 @@ button.icon {
 .seg button.on { background: rgba(255, 255, 255, 0.3); font-weight: 700; }
 .btn { background: rgba(255, 255, 255, 0.2); border: none; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 14px; }
 .btn.primary { background: var(--accent); color: #222; font-weight: 700; }
-.home-foot { text-align: center; font-size: 12px; opacity: 0.6; padding: 6px 0 calc(env(safe-area-inset-bottom) + 6px); }
+/* 底部安全區本身已含 Safari 浮動工具列上方的留白，這裡再收緊一點讓頁尾更靠近底部 */
+.home-foot {
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0.6;
+  padding: 4px 0 max(4px, calc(var(--safe-bottom) - 12px));
+}
+.standalone .install-hint { display: none; }
+@media (display-mode: standalone) {
+  .install-hint { display: none; }
+}
 
 /* ---- 遊戲畫面 ---- */
 .game-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -103,7 +122,7 @@ button.icon {
   display: flex;
   justify-content: space-around;
   background: var(--bar);
-  padding: 4px 0 calc(env(safe-area-inset-bottom) + 4px);
+  padding: 4px 0 calc(var(--safe-bottom) + 4px);
 }
 .actions button {
   background: none;
@@ -125,7 +144,7 @@ button.icon {
     flex-direction: column;
     justify-content: center;
     gap: 8px;
-    padding: 6px calc(env(safe-area-inset-right) + 2px) calc(env(safe-area-inset-bottom) + 6px) 2px;
+    padding: 6px calc(env(safe-area-inset-right) + 2px) calc(var(--safe-bottom) + 6px) 2px;
   }
   .actions button { min-width: 52px; padding: 4px 6px; }
   #table { margin-right: 0; }
@@ -369,7 +388,7 @@ table.stats td:nth-child(even) { font-weight: 600; }
 #toast {
   position: fixed;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom) + 84px);
+  bottom: calc(var(--safe-bottom) + 84px);
   transform: translateX(-50%);
   background: rgba(20, 20, 20, 0.92);
   color: #fff;

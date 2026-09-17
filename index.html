@@ -5,10 +5,11 @@
   <title>接龍合集</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="description" content="經典接龍、蜘蛛接龍、新接龍、金字塔、三峰。免費、無廣告、可離線。">
-  <meta name="theme-color" content="#23613c">
+  <meta name="theme-color" content="#1b4a2e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- default：內容不延伸到狀態列底下，狀態列由系統依 theme-color 塗色，避免 iOS 26+ 玻璃模糊蓋到標題列 -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="接龍">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
@@ -24,7 +25,7 @@
       <button id="btn-settings" class="icon" title="設定">⚙</button>
     </header>
     <main id="game-list"></main>
-    <footer class="home-foot">在 Safari 用「分享 → 加入主畫面」安裝，之後可離線遊玩<br><span id="app-version"></span></footer>
+    <footer class="home-foot"><span class="install-hint">在 Safari 用「分享 → 加入主畫面」安裝，之後可離線遊玩<br></span><span id="app-version"></span></footer>
   </div>
 
   <div id="game" class="screen hidden">
