@@ -1,10 +1,16 @@
-# 🃏 接龍合集
+<p align="center">
+  <img src="icons/icon-192.png" width="128" height="128" alt="接龍合集圖示">
+</p>
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](CHANGELOG.md)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![PWA](https://img.shields.io/badge/PWA-ready-success.svg)](#-安裝到-iphone)
+<h1 align="center">🃏 接龍合集</h1>
 
-免費、無廣告、可離線的網頁接龍合集。純 HTML / CSS / JavaScript，零依賴、零建置、零追蹤。加到 iPhone 主畫面後，沒有網路也能玩。
+<p align="center">
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.2-blue.svg" alt="Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="#-安裝到-iphone"><img src="https://img.shields.io/badge/PWA-ready-success.svg" alt="PWA"></a>
+</p>
+
+<p align="center">免費、無廣告、可離線的網頁接龍合集。純 HTML / CSS / JavaScript，零依賴、零建置、零追蹤。<br>加到 iPhone 主畫面後，沒有網路也能玩。</p>
 
 > 🔗 **線上版**：https://muzsor.github.io/solitaire-collection/
 >
@@ -12,9 +18,10 @@
 
 ## 📑 目錄
 
-- [� 接龍合集](#-接龍合集)
+- [🃏 接龍合集](#-接龍合集)
   - [📑 目錄](#-目錄)
   - [🎮 遊戲與難度](#-遊戲與難度)
+  - [📸 截圖](#-截圖)
   - [✨ 功能](#-功能)
   - [📱 安裝到 iPhone](#-安裝到-iphone)
   - [🛠️ 開發](#️-開發)
@@ -34,6 +41,26 @@
 | ⛰️ **三峰** TriPeaks | — | 有，連消加分 |
 
 難度可在首頁卡片或設定頁切換，下一局生效。新接龍的牌局編號與 Windows 新接龍相同，第 11982 局一樣無解。
+
+---
+
+## 📸 截圖
+
+首頁與五款遊戲（iPhone 直向），以及轉成橫向後的排版。
+
+<p align="center">
+  <img src="docs/screenshots/home.webp" width="30%" alt="首頁：五款遊戲卡片與難度選項">
+  <img src="docs/screenshots/klondike.webp" width="30%" alt="經典接龍 Klondike">
+  <img src="docs/screenshots/spider.webp" width="30%" alt="蜘蛛接龍 Spider">
+</p>
+<p align="center">
+  <img src="docs/screenshots/freecell.webp" width="30%" alt="新接龍 FreeCell">
+  <img src="docs/screenshots/pyramid.webp" width="30%" alt="金字塔 Pyramid，含湊 13 對照表">
+  <img src="docs/screenshots/tripeaks.webp" width="30%" alt="三峰 TriPeaks">
+</p>
+<p align="center">
+  <img src="docs/screenshots/landscape.webp" width="92%" alt="橫向排版：經典接龍">
+</p>
 
 ---
 
@@ -83,6 +110,8 @@
 | `manifest.webmanifest` | PWA 設定 |
 | `tests.html` | 單元測試（瀏覽器直接開） |
 | `scripts/icons.html` | 圖示產生器（瀏覽器直接開，下載 PNG） |
+| `scripts/screenshots.mjs` | 截圖產生器：無頭 Chrome 擷圖並套上 `screenshots-frame.html` 的 iPhone 外框 |
+| `docs/screenshots/` | README 用的截圖，由上面的腳本產生 |
 
 <details>
 <summary>🚀 本機啟動</summary>
@@ -138,6 +167,24 @@ npm run dev:lan
 ```bash
 chrome --headless=new --default-background-color=00000000 --window-size=512,512 --screenshot=icons/icon-512.png "http://localhost:8124/scripts/icons.html?only=icon-512.png"
 ```
+
+</details>
+
+<details>
+<summary>📸 重新產生截圖</summary>
+
+需要本機有 Chrome 或 Edge，Node 20.10 以上。
+
+```bash
+npm run screenshots
+```
+
+會啟動無頭 Chrome，模擬 iPhone（402×874 pt、獨立模式）開首頁與五款遊戲擷圖，再套上 `scripts/screenshots-frame.html` 的外框、狀態列與標題，輸出到 `docs/screenshots/*.webp`。牌局每次隨機發，重跑圖會不同。
+
+- 只重出幾張：`npm run screenshots -- home klondike`
+- 同時輸出 PNG：`npm run screenshots -- --png`
+- 標題與副標在 `scripts/screenshots.mjs` 的 `SHOTS`；外框、背景色在樣板檔裡改
+- 找不到瀏覽器時用環境變數 `CHROME` 指定執行檔
 
 </details>
 

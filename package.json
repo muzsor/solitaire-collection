@@ -1,12 +1,13 @@
 {
   "name": "solitaire-collection",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "免費、無廣告、可離線的網頁接龍合集（PWA）：經典接龍、蜘蛛接龍、新接龍、金字塔、三峰",
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev-server.mjs 8124",
-    "dev:lan": "node scripts/dev-server.mjs 8124 --lan"
+    "dev:lan": "node scripts/dev-server.mjs 8124 --lan",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "keywords": ["solitaire", "klondike", "spider", "freecell", "pyramid", "tripeaks", "pwa", "offline", "card-game"],
   "license": "MIT"

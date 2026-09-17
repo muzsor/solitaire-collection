@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<!-- README 截圖的外框樣板，由 scripts/screenshots.mjs 載入：?img=原始截圖&t=標題&s=副標&land=1（橫向）
+     直向畫布 402×874、橫向 874×470（CSS px，擷圖時以 2x 輸出）；手機以 1:1 pt 繪製後整體縮放 --k -->
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<style>
+  :root { --k: 0.74; --p: 9px; --r: 55px; }
+  html, body { margin: 0; }
+  body {
+    position: relative; overflow: hidden; color: #fff;
+    width: 402px; height: 874px;
+    background: radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.14), transparent 60%), linear-gradient(165deg, #2f7d4f 0%, #1b4a2e 100%);
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei UI', 'Microsoft JhengHei', 'Segoe UI', sans-serif;
+  }
+  body.land { width: 874px; height: 470px; }
+  .head { position: absolute; top: 40px; left: 24px; right: 24px; text-align: center; }
+  .head h1 { margin: 0 0 8px; font-size: 30px; font-weight: 800; letter-spacing: 0.5px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+  .head p { margin: 0; font-size: 15px; opacity: 0.88; line-height: 1.4; }
+  body.land .head { top: 26px; }
+  body.land .head h1 { font-size: 26px; margin-bottom: 4px; }
+  /* 手機本體：邊框漸層 + 內側黑色邊框，螢幕圓角 55pt、動態島 126×37pt */
+  .phone {
+    position: absolute; left: 50%; top: 150px; transform: translateX(-50%) scale(var(--k)); transform-origin: top center;
+    width: calc(402px + var(--p) * 2); height: calc(874px + var(--p) * 2);
+    border-radius: calc(var(--r) + var(--p));
+    background: linear-gradient(180deg, #4a4a4c 0%, #2c2c2e 40%, #1c1c1e 100%);
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45), inset 0 0 0 1.5px rgba(255, 255, 255, 0.28), inset 0 0 0 5px #0b0b0c;
+  }
+  body.land .phone { top: 118px; width: calc(874px + var(--p) * 2); height: calc(402px + var(--p) * 2); }
+  .screen { position: absolute; inset: var(--p); border-radius: var(--r); overflow: hidden; background: #1b4a2e; }
+  /* 狀態列 62pt，底色同 App 標題列（theme-color） */
+  .status { height: 62px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 30px 12px 40px; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .status .icons { display: flex; align-items: center; gap: 7px; }
+  .status svg { display: block; }
+  img.shot { display: block; width: 100%; height: auto; }
+  .island { position: absolute; left: 50%; top: 11px; transform: translateX(-50%); width: 126px; height: 37px; border-radius: 19px; background: #000; }
+  body.land .island { left: 11px; top: 50%; transform: translateY(-50%); width: 37px; height: 126px; }
+  .homebar { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: 139px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.92); }
+  .btn { position: absolute; background: linear-gradient(90deg, #3a3a3c, #1c1c1e); border-radius: 2px; }
+  .btn.left { left: -3px; width: 4px; }
+  .btn.right { right: -3px; width: 4px; }
+  .btn.action { top: 176px; height: 32px; }
+  .btn.vup { top: 236px; height: 68px; }
+  .btn.vdown { top: 318px; height: 68px; }
+  .btn.power { top: 254px; height: 108px; }
+  body.land .btn { display: none; }
+</style></head>
+<body>
+  <div class="head"><h1 id="t"></h1><p id="s"></p></div>
+  <div class="phone">
+    <div class="screen">
+      <div class="status" id="status">
+        <span>9:41</span>
+        <span class="icons">
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="#fff"><rect x="0" y="8" width="3" height="4" rx="0.8"/><rect x="5" y="5.5" width="3" height="6.5" rx="0.8"/><rect x="10" y="3" width="3" height="9" rx="0.8"/><rect x="15" y="0" width="3" height="12" rx="0.8"/></svg>
+          <svg width="17" height="12" viewBox="0 0 17 12" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M1.2 4.2a10.6 10.6 0 0 1 14.6 0"/><path d="M3.9 7a6.7 6.7 0 0 1 9.2 0"/><circle cx="8.5" cy="10.3" r="1.2" fill="#fff" stroke="none"/></svg>
+          <svg width="28" height="13" viewBox="0 0 28 13" fill="none"><rect x="0.75" y="0.75" width="23.5" height="11.5" rx="3.2" stroke="#fff" stroke-opacity="0.5" stroke-width="1.5"/><rect x="2.3" y="2.3" width="20.4" height="8.4" rx="2" fill="#fff"/><path d="M26 4.3v4.4a2.3 2.3 0 0 0 0-4.4z" fill="#fff" fill-opacity="0.5"/></svg>
+        </span>
+      </div>
+      <img class="shot" id="img" alt="">
+      <div class="island"></div>
+      <div class="homebar"></div>
+    </div>
+    <div class="btn left action"></div><div class="btn left vup"></div><div class="btn left vdown"></div><div class="btn right power"></div>
+  </div>
+  <script>
+    const q = new URLSearchParams(location.search);
+    if (q.get('land') === '1') { document.body.classList.add('land'); document.getElementById('status').remove(); }
+    document.getElementById('t').textContent = q.get('t') || '';
+    document.getElementById('s').textContent = q.get('s') || '';
+    document.getElementById('img').src = q.get('img');
+  </script>
+</body></html>

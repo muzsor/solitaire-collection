@@ -55,7 +55,8 @@ button:disabled { opacity: 0.4; cursor: default; }
   padding: calc(env(safe-area-inset-top) + 4px) calc(env(safe-area-inset-right) + 10px) 4px calc(env(safe-area-inset-left) + 8px);
   background: var(--bar);
 }
-.topbar h1 { font-size: 20px; margin: 0; flex: 1; }
+.topbar h1 { font-size: 20px; margin: 0; flex: 1; display: flex; align-items: center; gap: 8px; }
+.topbar .logo { width: 28px; height: 28px; border-radius: 7px; flex: none; }
 button.icon {
   background: none;
   border: none;
