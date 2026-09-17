@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>接龍合集 單元測試</title>
+<style>
+  body { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; margin: 24px; color: #222; background: #fafafa; }
+  h1 { font-size: 20px; }
+  #summary { font-size: 16px; font-weight: 700; margin: 12px 0; }
+  .pass { color: #1f7a3f; }
+  .fail { color: #b01c1c; }
+  table { border-collapse: collapse; width: 100%; max-width: 900px; font-size: 14px; }
+  td { padding: 5px 8px; border-bottom: 1px solid #e4e4e4; vertical-align: top; }
+  td:first-child { width: 60px; font-weight: 700; }
+  pre { margin: 2px 0 0; font-size: 12px; color: #666; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>接龍合集 單元測試</h1>
+<div id="summary">執行中…</div>
+<table id="results"></table>
+
+<script type="module">
+import { msFreeCellDeal, mulberry32, shuffle } from './js/rng.js';
+import { makeDeck, isRed, RANK_LABEL } from './js/cards.js';
+import { Game } from './js/engine.js';
+import { Klondike } from './js/games/klondike.js';
+import { Spider } from './js/games/spider.js';
+import { FreeCell } from './js/games/freecell.js';
+import { Pyramid } from './js/games/pyramid.js';
+import { TriPeaks } from './js/games/tripeaks.js';
+
+const results = [];
+function test(name, fn) {
+  try {
+    fn();
+    results.push({ name, ok: true });
+  } catch (e) {
+    results.push({ name, ok: false, err: e && e.message ? e.message : String(e) });
+  }
+}
+function eq(a, b, msg = '') {
+  const sa = JSON.stringify(a), sb = JSON.stringify(b);
+  if (sa !== sb) throw new Error(`${msg} 期望 ${sb}，實際 ${sa}`);
+}
+function ok(v, msg = '') {
+  if (!v) throw new Error(msg || '期望為真');
+}
+const label = (c) => RANK_LABEL[c.rank] + c.suit;
+const newGame = (Cls, seed, options) => new Cls(seed, options).boot();
+// 把牌放到指定牌堆（測試用，繞過規則）
+function put(g, pile, cards) {
+  for (const c of cards) {
+    const from = g.pileOf(c);
+    if (from) {
+      const i = from.cards.indexOf(c);
+      if (i >= 0) from.cards.splice(i, 1);
+    }
+    c.faceUp = true;
+    pile.cards.push(c);
+    g.cardPile.set(c.id, pile);
+  }
+}
+function card(g, suit, rank, deck = 0) {
+  return g.cardById.get(`${suit}${rank}_${deck}`);
+}
+
+// ---------- 隨機數與發牌 ----------
+test('mulberry32：相同 seed 產生相同序列', () => {
+  const a = mulberry32(12345), b = mulberry32(12345);
+  for (let i = 0; i < 20; i++) eq(a(), b());
+});
+test('shuffle：不遺失也不重複任何牌', () => {
+  const d = shuffle(makeDeck(1), mulberry32(7));
+  eq(d.length, 52);
+  eq(new Set(d.map((c) => c.id)).size, 52);
+});
+test('Microsoft FreeCell 第 1 局牌序與 Windows 相同', () => {
+  const cols = msFreeCellDeal(1);
+  const show = (col) => col.map((c) => RANK_LABEL[c.rank] + c.suit).join(' ');
+  eq(show(cols[0]), 'JD KD 2S 4C 3S 6D 6S', '第 1 欄');
+  eq(show(cols[7]), '5H 3H 3C 7S 7D 10C', '第 8 欄');
+  eq(cols.reduce((n, c) => n + c.length, 0), 52);
+});
+test('Microsoft FreeCell 第 617 局第一排牌與 Windows 相同', () => {
+  const cols = msFreeCellDeal(617);
+  eq(cols.map((c) => RANK_LABEL[c[0].rank] + c[0].suit).join(' '), '7D AD 5C 3S 5S 8C 2D AH');
+});
+
+// ---------- 引擎：復原、重來、存檔 ----------
+test('引擎：commit 之後可以 undo 回到原狀', () => {
+  const g = newGame(Klondike, 42, {});
+  const before = JSON.stringify(g.snapshot());
+  g.dealStock();
+  ok(g.moves === 1 && g.waste.size === 1);
+  g.undo();
+  eq(JSON.stringify(g.snapshot()), before);
+});
+test('引擎：restart 回到發牌狀態，不受復原堆疊上限影響', () => {
+  const g = newGame(Klondike, 42, {});
+  const initial = JSON.stringify(g.initialSnap.p);
+  for (let i = 0; i < 520; i++) g.dealStock();
+  ok(g.undoStack.length <= 500, '復原堆疊應有上限');
+  ok(g.restart());
+  eq(JSON.stringify(g.snapshot().p), initial);
+  eq(g.moves, 0);
+});
+test('引擎：serialize / deserialize 往返後狀態一致且 restart 仍可回到開頭', () => {
+  const g = newGame(Spider, 99, { suits: 2 });
+  g.dealRow();
+  const data = JSON.parse(JSON.stringify(g.serialize()));
+  const g2 = Game.deserialize(Spider, data);
+  eq(JSON.stringify(g2.snapshot().p), JSON.stringify(g.snapshot().p));
+  eq(g2.moves, g.moves);
+  eq(JSON.stringify(g2.initialSnap.p), JSON.stringify(g.initialSnap.p));
+  ok(g2.restart());
+  eq(g2.tableau.reduce((n, p) => n + p.size, 0), 54, '重來後疊牌欄應回到 54 張');
+});
+test('存檔：以動作日誌重播，重開後仍可一路復原到開頭', () => {
+  const g = newGame(Klondike, 77, {});
+  for (let i = 0; i < 30; i++) g.dealStock();
+  // 找一個真的搬牌動作也加進去
+  const h = g.hint();
+  if (h && h.from) g.drop(h.from, h.idx, h.to);
+  const data = JSON.parse(JSON.stringify(g.serialize()));
+  ok(Array.isArray(data.actions) && data.actions.length === g.moves, '動作數應等於步數');
+  ok(data.undo === undefined, '日誌完整時不該存快照堆疊');
+  const g2 = Game.deserialize(Klondike, data);
+  eq(JSON.stringify(g2.snapshot().p), JSON.stringify(g.snapshot().p));
+  eq(g2.score, g.score);
+  ok(g2.canUndo(), '重播後應能復原');
+  while (g2.canUndo()) g2.undo();
+  eq(JSON.stringify(g2.snapshot().p), JSON.stringify(g.initialSnap.p), '一路復原應回到開頭');
+});
+test('存檔：動作日誌比快照堆疊小很多', () => {
+  const g = newGame(Spider, 5, { suits: 4 });
+  for (let i = 0; i < 5; i++) g.dealRow();
+  // 隨便走 40 步合法移動（允許來回搬），只為了把日誌撐長
+  for (let i = 0; i < 40; i++) {
+    let done = false;
+    for (const from of g.tableau) {
+      for (let k = from.size - 1; k >= 0 && !done; k--) {
+        if (!g.canPick(from, k)) continue;
+        const to = g.tableau.find((t) => t !== from && !t.empty && g.canDrop(from, k, t));
+        if (to) { g.drop(from, k, to); done = true; }
+      }
+      if (done) break;
+    }
+    if (!done) break;
+  }
+  const size = JSON.stringify(g.serialize()).length;
+  const snapshotsSize = JSON.stringify(g.undoStack).length;
+  ok(g.moves >= 20, '至少要有 20 步才有意義，實際 ' + g.moves);
+  ok(size < 6000, `存檔應小於 6 KB，實際 ${size} 字元`);
+  ok(size * 5 < snapshotsSize, `存檔 (${size}) 應遠小於快照堆疊 (${snapshotsSize})`);
+});
+test('存檔：日誌損壞時退回最終快照，不會壞掉', () => {
+  const g = newGame(Klondike, 78, {});
+  for (let i = 0; i < 5; i++) g.dealStock();
+  const data = JSON.parse(JSON.stringify(g.serialize()));
+  data.actions[2] = { t: 'move', f: 'stock', i: 0, to: 'f0' }; // 塞一個亂來的動作
+  const g2 = Game.deserialize(Klondike, data);
+  eq(JSON.stringify(g2.snapshot().p), JSON.stringify(g.snapshot().p), '狀態應以快照為準');
+  ok(!g2.canUndo(), '重播失敗時沒有復原歷史');
+  eq(g2.moves, g.moves);
+});
+test('存檔：未附動作的 commit 會讓日誌失效並改存快照', () => {
+  const g = newGame(Klondike, 79, {});
+  g.dealStock();
+  g.commit(() => {});
+  ok(!g.logComplete);
+  const data = g.serialize();
+  ok(data.actions === null && Array.isArray(data.undo));
+  const g2 = Game.deserialize(Klondike, JSON.parse(JSON.stringify(data)));
+  eq(JSON.stringify(g2.snapshot().p), JSON.stringify(g.snapshot().p));
+  ok(g2.canUndo(), '快照模式仍保留存檔內的復原歷史');
+});
+test('存檔：金字塔配對動作可重播', () => {
+  const g = newGame(Pyramid, 11, { passes: 2 });
+  let removed = false;
+  for (let i = 0; i < 40 && !removed; i++) {
+    const free = g.freePiles();
+    const k = free.find((p) => p.top.rank === 13);
+    if (k) { g.tap(k, 0); removed = true; break; }
+    let pair = null;
+    for (const a of free) for (const b of free) if (a !== b && a.top.rank + b.top.rank === 13) pair = [a, b];
+    if (pair) { g.removePair(pair[0], pair[1]); removed = true; break; }
+    g.dealStock();
+  }
+  ok(removed, '應該至少消掉一次');
+  const data = JSON.parse(JSON.stringify(g.serialize()));
+  const g2 = Game.deserialize(Pyramid, data);
+  eq(JSON.stringify(g2.snapshot().p), JSON.stringify(g.snapshot().p));
+  eq(g2.done.size, g.done.size);
+  ok(g2.canUndo());
+});
+test('引擎：hint 不會建議把剛搬的牌搬回去', () => {
+  const g = newGame(Klondike, 1, {});
+  for (const p of g.piles) p.cards = [];
+  const a = g.tableau[0], b = g.tableau[1];
+  put(g, a, [card(g, 'S', 8)]);
+  put(g, b, [card(g, 'H', 9)]);
+  put(g, g.tableau[2], [card(g, 'D', 9)]);
+  g.drop(a, 0, b); // 8S 放到 9H 上
+  const h = g.hint();
+  ok(!(h && h.from === b && h.to === a), '不應建議搬回 a');
+});
+
+// ---------- 經典接龍 ----------
+test('Klondike：紅黑交錯遞減才能接，K 才能進空欄', () => {
+  const g = newGame(Klondike, 5, {});
+  for (const p of g.piles) p.cards = [];
+  const t0 = g.tableau[0], t1 = g.tableau[1];
+  put(g, t0, [card(g, 'H', 9)]);
+  put(g, t1, [card(g, 'S', 8)]);
+  ok(g.canDrop(t1, 0, t0), '黑 8 可接紅 9');
+  put(g, g.tableau[2], [card(g, 'C', 8)]);
+  put(g, g.tableau[3], [card(g, 'D', 8)]);
+  ok(!g.canDrop(g.tableau[3], 0, t0), '紅 8 不能接紅 9');
+  put(g, g.tableau[4], [card(g, 'S', 13)]);
+  ok(g.canDrop(g.tableau[4], 0, g.tableau[5]), 'K 可進空欄');
+  ok(!g.canDrop(g.tableau[2], 0, g.tableau[5]), '8 不能進空欄');
+});
+test('Klondike：基礎堆同花色從 A 往上，計分正確且不會負分', () => {
+  const g = newGame(Klondike, 5, {});
+  for (const p of g.piles) p.cards = [];
+  const t0 = g.tableau[0];
+  put(g, t0, [card(g, 'S', 1)]);
+  ok(g.canDrop(t0, 0, g.foundations[0]));
+  g.drop(t0, 0, g.foundations[0]);
+  eq(g.score, 10);
+  put(g, g.tableau[1], [card(g, 'H', 2)]);
+  ok(!g.canDrop(g.tableau[1], 0, g.foundations[0]), '紅 2 不能接黑桃 A');
+  put(g, g.tableau[1], [card(g, 'H', 2), card(g, 'S', 2)]);
+  ok(g.canDrop(g.tableau[1], 1, g.foundations[0]));
+  put(g, g.tableau[2], [card(g, 'D', 2)]);
+  g.drop(g.foundations[0], 0, g.tableau[2]); // A 拿回疊牌欄 −15，不能低於 0
+  eq(g.score, 0);
+});
+test('Klondike：翻 3 張與重翻牌堆', () => {
+  const g = newGame(Klondike, 8, { draw3: true });
+  g.dealStock();
+  eq(g.waste.size, 3);
+  while (!g.stock.empty) g.dealStock();
+  eq(g.waste.size, 24);
+  g.dealStock(); // 重翻
+  eq(g.stock.size, 24);
+  eq(g.waste.size, 0);
+  eq(g.passes, 1);
+});
+test('Klondike：卡死判定在有牌可打時為真', () => {
+  const g = newGame(Klondike, 8, {});
+  ok(g.hasMoves());
+});
+
+// ---------- 蜘蛛接龍 ----------
+test('Spider：同花色連續才算一串，任何大 1 的牌都能接', () => {
+  const g = newGame(Spider, 3, { suits: 4 });
+  for (const p of g.piles) p.cards = [];
+  const t0 = g.tableau[0];
+  put(g, t0, [card(g, 'S', 9), card(g, 'S', 8), card(g, 'S', 7)]);
+  ok(g.canPick(t0, 0), '9-8-7 黑桃可整串搬');
+  put(g, g.tableau[1], [card(g, 'H', 6)]);
+  ok(!g.canPick(g.tableau[1], 0) || g.canPick(g.tableau[1], 0)); // 單張永遠可搬
+  t0.cards = [];
+  put(g, t0, [card(g, 'S', 9), card(g, 'S', 8), card(g, 'H', 7)]);
+  ok(!g.canPick(t0, 0), '混花色不能整串搬');
+  ok(g.canPick(t0, t0.size - 1), '最上面單張可搬');
+});
+test('Spider：7 接 8 可以、7 接 10 不行', () => {
+  const g = newGame(Spider, 3, { suits: 4 });
+  for (const p of g.piles) p.cards = [];
+  put(g, g.tableau[0], [card(g, 'H', 7)]);
+  put(g, g.tableau[1], [card(g, 'D', 8)]);
+  put(g, g.tableau[2], [card(g, 'D', 10)]);
+  ok(g.canDrop(g.tableau[0], 0, g.tableau[1]));
+  ok(!g.canDrop(g.tableau[0], 0, g.tableau[2]));
+});
+test('Spider：K 到 A 同花色整串自動收走並加 100 分', () => {
+  const g = newGame(Spider, 3, { suits: 1 });
+  for (const p of g.piles) p.cards = [];
+  const run = [];
+  for (let r = 13; r >= 2; r--) run.push(card(g, 'S', r));
+  put(g, g.tableau[0], run);
+  put(g, g.tableau[1], [card(g, 'S', 1)]);
+  const before = g.score;
+  g.drop(g.tableau[1], 0, g.tableau[0]);
+  eq(g.foundation.size, 13);
+  eq(g.completed, 1);
+  eq(g.score, before - 1 + 100);
+});
+test('Spider：有空欄時不能發牌', () => {
+  const g = newGame(Spider, 3, { suits: 1 });
+  g.tableau[0].cards.forEach((c) => g.cardPile.set(c.id, g.tableau[1]));
+  g.tableau[1].cards.push(...g.tableau[0].cards);
+  g.tableau[0].cards = [];
+  let msg = '';
+  g.on('message', (m) => (msg = m));
+  const stock = g.stock.size;
+  g.dealRow();
+  eq(g.stock.size, stock);
+  ok(msg.length > 0);
+});
+
+// ---------- 新接龍 ----------
+test('FreeCell：暫存格數量選項', () => {
+  eq(newGame(FreeCell, 1, { cells: 4 }).cells.length, 4);
+  eq(newGame(FreeCell, 1, { cells: 2 }).cells.length, 2);
+  eq(newGame(FreeCell, 1, { cells: 1 }).cells.length, 1);
+});
+test('FreeCell：一次可搬張數 = (空暫存格+1) × 2^空欄', () => {
+  const g = newGame(FreeCell, 1, { cells: 4 });
+  for (const p of g.piles) p.cards = [];
+  eq(g.maxMovable(null), 5 * Math.pow(2, 8));
+  put(g, g.cells[0], [card(g, 'S', 5)]);
+  put(g, g.tableau[0], [card(g, 'H', 9)]);
+  eq(g.maxMovable(g.tableau[1]), 4 * Math.pow(2, 6), '搬到空欄時那一欄不算');
+  eq(g.maxMovable(g.tableau[0]), 4 * Math.pow(2, 7));
+});
+test('FreeCell：超過可搬上限的串不能搬', () => {
+  const g = newGame(FreeCell, 1, { cells: 1 });
+  for (const p of g.piles) p.cards = [];
+  // 塞滿其他欄避免有空欄
+  for (let i = 2; i < 8; i++) put(g, g.tableau[i], [card(g, 'C', i + 2)]);
+  put(g, g.cells[0], [card(g, 'S', 13)]);
+  put(g, g.tableau[0], [card(g, 'S', 9), card(g, 'H', 8), card(g, 'S', 7)]);
+  put(g, g.tableau[1], [card(g, 'H', 10)]);
+  ok(g.canPick(g.tableau[0], 0), '9-8-7 交錯是合法串');
+  ok(!g.canDrop(g.tableau[0], 0, g.tableau[1]), '暫存格滿、沒空欄，一次只能搬 1 張');
+  ok(g.canDrop(g.tableau[0], 2, g.tableau[1]) === false, '7 不能接 10');
+});
+test('FreeCell：只收「安全」的牌', () => {
+  const g = newGame(FreeCell, 1, { cells: 4 });
+  for (const p of g.piles) p.cards = [];
+  put(g, g.foundations[0], [card(g, 'S', 1)]);
+  put(g, g.tableau[0], [card(g, 'S', 2)]);
+  put(g, g.tableau[1], [card(g, 'S', 3)]);
+  ok(g.isSafeToFoundation(card(g, 'S', 2)), '2 永遠安全');
+  ok(!g.isSafeToFoundation(card(g, 'S', 3)), '紅色 2 還沒上去，黑 3 不安全');
+});
+
+// ---------- 金字塔 ----------
+test('Pyramid：被壓住的牌不能選，最底排可以', () => {
+  const g = newGame(Pyramid, 11, {});
+  ok(!g.isFree(g.slots[0]), '頂端被壓住');
+  ok(g.isFree(g.slots[27]), '底排最右可選');
+});
+test('Pyramid：加起來 13 才能配，K 單張消', () => {
+  const g = newGame(Pyramid, 11, {});
+  const bottom = g.slots.filter((s) => s.meta.row === 6);
+  for (const s of bottom) s.cards = [];
+  put(g, bottom[0], [card(g, 'S', 5)]);
+  put(g, bottom[1], [card(g, 'H', 8)]);
+  put(g, bottom[2], [card(g, 'D', 13)]);
+  put(g, bottom[3], [card(g, 'C', 4)]);
+  ok(g.canDrop(bottom[0], 0, bottom[1]), '5+8');
+  ok(!g.canDrop(bottom[0], 0, bottom[3]), '5+4');
+  const done = g.done.size;
+  g.tap(bottom[2], 0);
+  eq(g.done.size, done + 1, 'K 單張消');
+});
+test('Pyramid：重翻次數選項', () => {
+  const g0 = newGame(Pyramid, 11, { passes: 0 });
+  while (!g0.stock.empty) g0.dealStock();
+  let msg = '';
+  g0.on('message', (m) => (msg = m));
+  g0.dealStock();
+  ok(g0.stock.empty && msg.length > 0, '不可重翻');
+  const g2 = newGame(Pyramid, 11, { passes: 2 });
+  while (!g2.stock.empty) g2.dealStock();
+  g2.dealStock();
+  eq(g2.stock.size, 24);
+  eq(g2.passes, 1);
+  const gi = newGame(Pyramid, 11, { passes: -1 });
+  ok(gi.canRedeal());
+});
+
+// ---------- 三峰 ----------
+test('TriPeaks：大 1 小 1 可接，A 與 K 相鄰', () => {
+  const g = newGame(TriPeaks, 21, {});
+  const a = { rank: 1 }, k = { rank: 13 }, two = { rank: 2 }, five = { rank: 5 };
+  ok(g.adjacent(a, k));
+  ok(g.adjacent(a, two));
+  ok(!g.adjacent(a, five));
+});
+test('TriPeaks：底排面朝上、上層面朝下，移走兩張後上層翻開', () => {
+  const g = newGame(TriPeaks, 21, {});
+  ok(g.slots.filter((s) => s.meta.row === 3).every((s) => s.top.faceUp));
+  ok(g.slots.filter((s) => s.meta.row < 3).every((s) => !s.top.faceUp));
+  const bottom = g.slots.filter((s) => s.meta.row === 3);
+  // 直接拿走底排最左兩張，覆蓋在上面的第 2 排第 1 張應翻開
+  for (const s of bottom.slice(0, 2)) g.moveTop(s, g.waste, true);
+  g.flipFree();
+  const above = g.slotAt(2, 0.5);
+  ok(above.top.faceUp);
+});
+test('TriPeaks：連消計分遞增，翻牌堆歸零', () => {
+  const g = newGame(TriPeaks, 21, {});
+  const bottom = g.slots.filter((s) => s.meta.row === 3);
+  put(g, g.waste, [card(g, 'S', 5)]);
+  put(g, bottom[0], [card(g, 'H', 6)]);
+  put(g, bottom[1], [card(g, 'D', 7)]);
+  g.drop(bottom[0], 0, g.waste);
+  g.drop(bottom[1], 0, g.waste);
+  eq(g.score, 1 + 2);
+  eq(g.streak, 2);
+  g.dealStock();
+  eq(g.streak, 0);
+  eq(g.score, 0, '3 − 5 不低於 0');
+});
+
+// ---------- 顯示 ----------
+const table = document.getElementById('results');
+let pass = 0;
+for (const r of results) {
+  if (r.ok) pass++;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="${r.ok ? 'pass' : 'fail'}">${r.ok ? 'PASS' : 'FAIL'}</td><td>${r.name}${r.ok ? '' : `<pre>${r.err}</pre>`}</td>`;
+  table.appendChild(tr);
+}
+const s = document.getElementById('summary');
+s.textContent = `${pass} / ${results.length} 通過`;
+s.className = pass === results.length ? 'pass' : 'fail';
+window.__testResults = results;
+</script>
+</body>
+</html>

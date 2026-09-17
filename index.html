@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-table="green" data-back="blue">
+<head>
+  <meta charset="utf-8">
+  <title>接龍合集</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="description" content="經典接龍、蜘蛛接龍、新接龍、金字塔、三峰。免費、無廣告、可離線。">
+  <meta name="theme-color" content="#23613c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="接龍">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icons/icon-180.png">
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+  <div id="home" class="screen">
+    <header class="topbar">
+      <h1>接龍合集</h1>
+      <button id="btn-stats-home" class="icon" title="統計">▤</button>
+      <button id="btn-settings" class="icon" title="設定">⚙</button>
+    </header>
+    <main id="game-list"></main>
+    <footer class="home-foot">在 Safari 用「分享 → 加入主畫面」安裝，之後可離線遊玩<br><span id="app-version"></span></footer>
+  </div>
+
+  <div id="game" class="screen hidden">
+    <header class="topbar">
+      <button id="btn-back" class="icon" title="回選單">‹</button>
+      <div class="title"><span id="g-title"></span><span id="g-sub"></span></div>
+      <div class="hud"><span id="hud-time">00:00</span><span id="hud-moves">0 步</span><span id="hud-score"></span></div>
+    </header>
+    <div id="deadend" class="deadend hidden">
+      <span>沒有可走的步了</span>
+      <button id="dead-undo" class="btn small">復原</button>
+      <button id="dead-restart" class="btn small">回到開頭</button>
+      <button id="dead-new" class="btn small primary">發新局</button>
+    </div>
+    <div class="game-body">
+      <div id="table"></div>
+      <nav class="actions">
+        <button id="btn-undo">↶<small>復原</small></button>
+        <button id="btn-hint">✧<small>提示</small></button>
+        <button id="btn-collect">⇈<small>收牌</small></button>
+        <button id="btn-new">✦<small>新局</small></button>
+        <button id="btn-menu">☰<small>選單</small></button>
+      </nav>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast"></div>
+
+  <script src="./version.js"></script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

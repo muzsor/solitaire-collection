@@ -1,0 +1,13 @@
+# 作業系統
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 編輯器
+.vscode/
+.idea/
+*.swp
+
+# Node（本專案沒有相依套件，但保險起見）
+node_modules/
+npm-debug.log*
