@@ -8,7 +8,10 @@
   <meta name="theme-color" content="#1b4a2e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <!-- default：內容不延伸到狀態列底下，狀態列由系統依 theme-color 塗色，避免 iOS 26+ 玻璃模糊蓋到標題列 -->
+  <!-- default：內容不延伸到狀態列底下。black-translucent 在 iOS 26+ 會被系統鋪上 Liquid Glass 模糊、把整條標題列洗白，且無法關閉。
+       但 default 下橫向會隱藏狀態列、轉回直向後 WebKit 的觸控座標停在橫向的位置，整個畫面要往上一個狀態列高度才點得到，
+       由 app.js 的 installRotationFix 在轉向後強迫重算視口來補救。
+       狀態列顏色：iOS 26 起不再讀 theme-color，改為取樣最上方 fixed 元素的 background-color，所以用 #statusbar-tint 給它標題列的顏色 -->
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="接龍">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -54,6 +57,8 @@
 
   <div id="modal-root"></div>
   <div id="toast"></div>
+  <!-- 1px 高、貼齊最上方的 fixed 元素，只用來讓 iOS 26+ 把狀態列塗成標題列的顏色，顏色由 app.js 設定 -->
+  <div id="statusbar-tint"></div>
 
   <script src="./version.js"></script>
   <script type="module" src="./js/app.js"></script>

@@ -37,14 +37,23 @@ const DEFAULT_SETTINGS = {
   spiderSuits: 1,
   freecellCells: 4,
   pyramidPasses: 2,
-  leftHand: false,
+  hand: 'right', // 慣用手：牌堆放在這一側；金字塔的湊 13 小表放另一側，才不會被拇指遮住
   sound: true,
   cardBack: 'blue',
   table: 'green',
   bigFont: false,
   showTimer: true,
 };
-let settings = { ...DEFAULT_SETTINGS, ...load('sol.settings', {}) };
+// 1.0.4 起布林的「左手模式」改成「慣用手」：舊設定開著左手模式的對應到左手，其餘視為右手
+function loadSettings() {
+  const stored = load('sol.settings', {});
+  const s = { ...DEFAULT_SETTINGS, ...stored };
+  // 要看存檔裡有沒有 hand，不能看合併後的 s，否則預設值會蓋掉舊的左手設定
+  if (stored.hand !== 'left' && stored.hand !== 'right') s.hand = stored.leftHand ? 'left' : 'right';
+  delete s.leftHand;
+  return s;
+}
+let settings = loadSettings();
 
 function saveSettings() {
   save('sol.settings', settings);
@@ -66,10 +75,14 @@ function applySettings() {
   const root = document.documentElement;
   root.dataset.table = settings.table;
   root.dataset.back = settings.cardBack;
+  const bar = headerColor(TABLE_COLORS[settings.table] || TABLE_COLORS.green);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = headerColor(TABLE_COLORS[settings.table] || TABLE_COLORS.green);
+  if (meta) meta.content = bar; // iOS 15–25 的狀態列用這個
+  const tint = $('#statusbar-tint');
+  if (tint) tint.style.backgroundColor = bar; // iOS 26+ 改為取樣最上方 fixed 元素的底色
   document.body.classList.toggle('big-font', settings.bigFont);
   document.body.classList.toggle('no-timer', !settings.showTimer);
+  document.body.classList.toggle('hand-left', settings.hand === 'left'); // 橫向時動作列跟著換到左邊
   Sound.setSoundEnabled(settings.sound);
   if (renderer) renderer.relayout();
 }
@@ -614,7 +627,13 @@ function showSettings() {
     });
 
   for (const id of Object.keys(GAME_OPTIONS)) row(GAME_OPTIONS[id].label, optionControl(id, true));
-  row('左手模式', toggle('leftHand'));
+  row(
+    '慣用手',
+    seg('hand', [
+      { v: 'right', label: '右手' },
+      { v: 'left', label: '左手' },
+    ])
+  );
   row('大字模式', toggle('bigFont'));
   row('顯示計時', toggle('showTimer'));
   row('音效', toggle('sound'));
@@ -641,7 +660,7 @@ function showSettings() {
   rows.forEach((r) => body.appendChild(r));
   const note = document.createElement('p');
   note.className = 'note';
-  note.textContent = '難度選項會在下一局生效。';
+  note.textContent = '難度選項會在下一局生效。慣用手決定牌堆放哪一側，金字塔的湊 13 小表則放另一側；橫向時按鈕列也跟著換邊。';
   body.appendChild(note);
   const dataRow = document.createElement('div');
   dataRow.className = 'setting-row';
@@ -783,7 +802,7 @@ async function copyText(text) {
 }
 
 function applyImported(result) {
-  settings = { ...DEFAULT_SETTINGS, ...load('sol.settings', {}) };
+  settings = loadSettings();
   applySettings();
   if (!current) renderHome();
   toast(`已還原 ${result.count} 筆資料`);
@@ -906,6 +925,52 @@ function autoCollect() {
     return;
   }
   setTimeout(step, 130);
+}
+
+// ---------- 轉向補救 ----------
+// iOS 27 加到主畫面、狀態列為 default 時：橫向會隱藏狀態列、視圖長到滿版；轉回直向後視圖縮回狀態列底下，
+// 但 WebKit 的觸控座標常停在橫向的位置，整個畫面要往上一個狀態列高度才點得到，直到下一次轉向。
+// 補救：轉向後等尺寸穩定（iOS 會連續回報幾次錯的寬高），把 viewport-fit 切成 auto 再切回 cover，
+// 逼 WebKit 重算視口幾何，再捲回原點、強制重排。400 毫秒後再踢一次，避免第一次時狀態列還沒回來。
+function installRotationFix() {
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (!meta || !meta.content.includes('viewport-fit=cover')) return;
+  const original = meta.content;
+  // 切回 cover 用 setTimeout 而不是 requestAnimationFrame：頁面不在前景時 rAF 會暫停，meta 就會卡在 auto
+  const kick = () => {
+    meta.content = original.replace('viewport-fit=cover', 'viewport-fit=auto');
+    setTimeout(() => {
+      meta.content = original;
+      window.scrollTo(0, 0);
+      const root = document.documentElement;
+      root.style.height = window.innerHeight + 'px';
+      void root.offsetHeight;
+      root.style.height = '';
+      if (renderer) renderer.relayout();
+    }, 50);
+  };
+  let poll = null;
+  const onRotate = () => {
+    clearInterval(poll);
+    let last = null;
+    let stable = 0;
+    let ticks = 0;
+    poll = setInterval(() => {
+      const now = `${window.innerWidth}x${window.innerHeight}`;
+      stable = now === last ? stable + 1 : 0;
+      last = now;
+      ticks++;
+      if (stable >= 2 || ticks > 20) {
+        clearInterval(poll);
+        poll = null;
+        kick();
+        setTimeout(kick, 400);
+      }
+    }, 100);
+  };
+  window.addEventListener('orientationchange', onRotate);
+  if (screen.orientation) screen.orientation.addEventListener('change', onRotate);
+  return kick;
 }
 
 // ---------- Service Worker ----------
@@ -1040,12 +1105,14 @@ function init() {
   $('#app-version').textContent = `v${APP_VERSION}`;
   renderHome();
   showScreen('home');
+  const kick = installRotationFix();
   registerSW();
-  // 除錯用：在主控台可透過 __sol.game 取得目前遊戲
+  // 除錯用：在主控台可透過 __sol.game 取得目前遊戲，__sol.kick() 手動觸發轉向補救
   window.__sol = {
     get game() {
       return current && current.game;
     },
+    kick,
   };
 }
 

@@ -64,19 +64,21 @@ export class Pyramid extends Game {
     const dx = orient === 'portrait' ? 0 : 1.5;
     for (const s of this.slots) piles[s.id] = { x: s.meta.x + dx, y: s.meta.row * 0.5 };
     if (orient === 'portrait') {
-      piles.stock = { x: 2.5, y: 4.3 };
-      piles.waste = { x: 3.5, y: 4.3 };
-      piles.done = { x: 5.5, y: 4.3 };
-      // 湊 13 小表放在牌堆左邊，兩欄排列
+      // 底排由左到右：湊 13 小表（兩欄）、完成堆、空一格、棄牌堆、牌堆。
+      // 這是右手用的排版：牌堆在最右邊靠右手拇指，抽牌往左翻到棄牌堆，小表在最左邊不會被拇指遮住。
+      // hand: 'right'：慣用左手時渲染器整體鏡射，變成牌堆在最左、往右翻、小表在右
+      piles.done = { x: 2.5, y: 4.3 };
+      piles.waste = { x: 4.5, y: 4.3 };
+      piles.stock = { x: 5.5, y: 4.3 };
       const extras = [{ id: 'cheat', x: 0, y: 4.3, w: 2.2, cols2: true }];
-      return { w: 7, h: 6.2, piles, extras, centerY: true };
+      return { w: 7, h: 6.2, piles, extras, centerY: true, hand: 'right' };
     }
     piles.stock = { x: 0, y: 0.5 };
     piles.waste = { x: 0, y: 1.6 };
     piles.done = { x: 0, y: 2.7 };
-    // 橫向放在金字塔右側，直排
+    // 橫向：牌堆在左、小表在金字塔右側直排。標成 left，慣用右手時鏡射成牌堆在右、小表在左
     const extras = [{ id: 'cheat', x: 8.8, y: 0.2, w: 1.6 }];
-    return { w: 10.4, h: 4, piles, extras, centerY: true };
+    return { w: 10.4, h: 4, piles, extras, centerY: true, hand: 'left' };
   }
 
   extraHtml(id) {

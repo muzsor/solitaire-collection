@@ -5,7 +5,7 @@
 <h1 align="center">🃏 接龍合集</h1>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.3-blue.svg" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.4-blue.svg" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="#-安裝到-iphone"><img src="https://img.shields.io/badge/PWA-ready-success.svg" alt="PWA"></a>
 </p>
@@ -73,7 +73,7 @@
 - 📊 勝場、勝率、最佳時間、最高分、連勝統計
 - 🔢 每局都有局號，選單可複製或輸入局號，和朋友玩同一副牌；新接龍局號與 Windows 相同
 - 🔄 直向、橫向都可玩，轉向自動重排，牌太小時自動放大角標
-- 🎨 左手模式、大字模式、桌面與牌背顏色、音效、計時器
+- 🎨 慣用手（牌堆放在慣用手那一側，金字塔的湊 13 小表放另一側）、大字模式、桌面與牌背顏色、音效、計時器
 - 🧮 金字塔附「湊 13」對照表，選牌時對應組合會亮起
 - 📖 每款遊戲都有中文規則說明
 - 🚧 無路可走時跳出橫幅，可復原、回到開頭或發新局

@@ -152,6 +152,10 @@ button.icon {
   }
   .actions button { min-width: 52px; padding: 4px 6px; }
   #table { margin-right: 0; }
+  /* 慣用左手：動作列換到左邊，安全區內距也跟著換邊 */
+  .hand-left .game-body { flex-direction: row-reverse; }
+  .hand-left .actions { padding: 6px 2px calc(var(--safe-bottom) + 6px) calc(env(safe-area-inset-left) + 2px); }
+  .hand-left #table { margin-left: 0; margin-right: env(safe-area-inset-right); }
 }
 
 /* ---- 無路可走橫幅 ---- */
@@ -412,6 +416,20 @@ table.stats td:nth-child(even) { font-weight: 600; }
 .win-stats div { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #eee; }
 .win-stats span { color: #777; }
 .win-stats em { font-style: normal; color: #c8242c; font-size: 12px; margin-left: 4px; }
+
+/* ---- 狀態列取色 ---- */
+/* iOS 26 起獨立模式的狀態列顏色取樣最上方 fixed 元素的 background-color（不再讀 theme-color）。
+   放一條 1px 的 fixed 元素在頂端，顏色與標題列相同，所以看不見；在對話框底下、不吃點擊 */
+#statusbar-tint {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  pointer-events: none;
+  z-index: 10;
+  background-color: var(--table);
+}
 
 /* ---- 提示訊息 ---- */
 #toast {

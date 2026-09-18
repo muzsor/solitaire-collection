@@ -109,6 +109,9 @@ export class Renderer {
     const orient = W > H ? 'landscape' : 'portrait';
     const L = this.game.layout(orient);
     const s = this.getSettings();
+    // 各遊戲寫 layout 時預設是「牌堆在左」，適合左手拇指；金字塔標成 right，因為湊 13 小表在左、牌堆偏右，適合右手。
+    // 玩家的慣用手和排版設計的手不同時，整個牌桌左右鏡射
+    this.mirror = s.hand !== (L.hand || 'left');
     let cw = Math.min(W / (L.w * (1 + GAP) - GAP), H / ((L.h * (1 + GAP) - GAP) * RATIO), MAX_CW);
     cw = Math.floor(cw);
     const ch = Math.round(cw * RATIO);
@@ -126,7 +129,7 @@ export class Renderer {
     this.el.classList.toggle('narrow', this.narrow);
     for (const p of this.game.piles) {
       const lp = L.piles[p.id] || { x: 0, y: 0 };
-      const x = s.leftHand ? L.w - 1 - lp.x : lp.x;
+      const x = this.mirror ? L.w - 1 - lp.x : lp.x;
       const px = Math.round(ox + x * ux);
       const py = Math.round(oy + lp.y * uy);
       this.pilePos.set(p.id, { x: px, y: py, fan: lp.fan || 'none' });
@@ -146,7 +149,7 @@ export class Renderer {
         this.el.appendChild(el);
         this.extraEls.set(ex.id, el);
       }
-      const x = s.leftHand ? L.w - ex.w - ex.x : ex.x;
+      const x = this.mirror ? L.w - ex.w - ex.x : ex.x;
       el.style.transform = `translate3d(${Math.round(ox + x * ux)}px,${Math.round(oy + ex.y * uy)}px,0)`;
       el.style.width = Math.round(ex.w * ux - cw * GAP) + 'px';
       el.classList.toggle('cols2', !!ex.cols2);
@@ -165,7 +168,7 @@ export class Renderer {
     if (!g || !this.dim) return;
     const { cw, ch, H } = this.dim;
     const s = this.getSettings();
-    const dir = s.leftHand ? -1 : 1;
+    const dir = this.mirror ? -1 : 1;
     this.el.classList.toggle('no-anim', !animate);
     for (const p of g.piles) {
       const pp = this.pilePos.get(p.id);
