@@ -12,9 +12,11 @@ export function mulberry32(seed) {
   };
 }
 
+// 種子上限：31 位元正整數，也是除了新接龍以外各遊戲的局號上限
+export const MAX_SEED = 0x7fffffff;
+
 export function randomSeed() {
-  const s = (Math.random() * 0x7fffffff) >>> 0;
-  return s || 1;
+  return Math.floor(Math.random() * MAX_SEED) + 1;
 }
 
 export function shuffle(arr, rng) {
@@ -25,7 +27,7 @@ export function shuffle(arr, rng) {
   return arr;
 }
 
-// Microsoft FreeCell 牌局編號演算法（1 ~ 32000），與 Windows 新接龍的牌局一致
+// Microsoft FreeCell 牌局編號演算法（1 ~ 1000000），與 Windows 新接龍的牌局一致
 // 回傳 8 欄，每欄為 {suit, rank} 陣列（由上到下）
 export function msFreeCellDeal(gameNumber) {
   let seed = gameNumber >>> 0;

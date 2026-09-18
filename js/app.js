@@ -4,7 +4,7 @@ import { GAMES, GAME_BY_ID } from './games/index.js';
 import { Game } from './engine.js';
 import { Renderer } from './render.js';
 import { RULES } from './rules.js';
-import { randomSeed } from './rng.js';
+import { randomSeed, MAX_SEED } from './rng.js';
 import * as Sound from './sound.js';
 
 const $ = (s) => document.querySelector(s);
@@ -291,7 +291,11 @@ function startGame(id, mode, extraOptions) {
     if (mode === 'replay' && current && current.game.meta.id === id) {
       game = new Cls(current.game.seed, current.game.options);
     } else {
-      game = new Cls(randomSeed(), { ...optionsFor(id), ...(extraOptions || {}) });
+      const opts = { ...optionsFor(id), ...(extraOptions || {}) };
+      // 指定局號（選單「輸入局號」）：新接龍存進 options.deal，其他遊戲的局號就是種子
+      const deal = opts.deal;
+      delete opts.deal;
+      game = deal ? Cls.fromDeal(deal, opts) : new Cls(randomSeed(), opts);
     }
     game.boot();
   }
@@ -304,7 +308,7 @@ function setupGame(game, elapsed) {
   const m = game.meta;
   showScreen('game');
   $('#g-title').textContent = m.name;
-  $('#g-sub').textContent = game.subtitle();
+  $('#g-sub').textContent = dealLabel(game);
   $('#btn-collect').classList.toggle('hidden', !m.hasAutoCollect);
   $('#hud-score').classList.toggle('hidden', !m.hasScore);
   renderer.setGame(game, { deal: game.moves === 0 });
@@ -493,6 +497,11 @@ function showModal({ title, html, buttons = [], sticky = false, cls = '' }) {
   const btnWrap = bd.querySelector('.modal-buttons');
   for (const b of buttons) {
     const el = button(b.label, 'btn' + (b.primary ? ' primary' : ''), () => {
+      // noClose：由 onClick 自己決定何時關（例如輸入驗證失敗要留在對話框）；其他按鈕按完就關
+      if (b.noClose) {
+        b.onClick && b.onClick();
+        return;
+      }
       close();
       b.onClick && b.onClick();
     });
@@ -659,12 +668,25 @@ function exportData() {
   return BACKUP_PREFIX + btoa(unescape(encodeURIComponent(json)));
 }
 
+// 解讀備份字串並寫回 localStorage。錯誤訊息要讓人看得出怎麼補救：
+// - iPhone 鍵盤會把貼上內容開頭的 SOL1 自動改成小寫，所以前綴不分大小寫
+// - 經由聊天軟體轉貼可能夾進空白或換行，一律忽略
 function importData(text) {
   const t = (text || '').trim();
-  if (!t.startsWith(BACKUP_PREFIX)) throw new Error('格式不對，開頭應該是 ' + BACKUP_PREFIX);
-  const json = decodeURIComponent(escape(atob(t.slice(BACKUP_PREFIX.length))));
-  const parsed = JSON.parse(json);
-  if (!parsed || parsed.v !== 1 || typeof parsed.data !== 'object') throw new Error('內容無法解讀');
+  if (!t) throw new Error('還沒貼上任何內容。請先在原本的裝置按「複製」，再貼到這裡。');
+  if (!/^sol1:/i.test(t)) {
+    throw new Error(`開頭應該是「${BACKUP_PREFIX}」，但貼上的內容開頭是「${t.slice(0, 8)}」。請確認是從備份文字的最前面開始複製。`);
+  }
+  const body = t.slice(BACKUP_PREFIX.length).replace(/\s+/g, '');
+  let parsed;
+  try {
+    parsed = JSON.parse(decodeURIComponent(escape(atob(body))));
+  } catch {
+    throw new Error('內容不完整或被改動過：可能只複製到一部分，或貼上時被鍵盤自動修正。請回到原裝置重新按「複製」，整段貼上。');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !('v' in parsed)) throw new Error('內容不是接龍合集的備份格式。');
+  if (parsed.v !== 1) throw new Error(`這份備份來自較新的版本（格式 v${parsed.v}），請先把這台裝置的 App 更新到最新版再匯入。`);
+  if (!parsed.data || typeof parsed.data !== 'object') throw new Error('內容不是接龍合集的備份格式。');
   let n = 0;
   for (const [k, v] of Object.entries(parsed.data)) {
     if (k.startsWith('sol.') && typeof v === 'string') {
@@ -672,52 +694,126 @@ function importData(text) {
       n++;
     }
   }
+  if (!n) throw new Error('這份備份裡沒有任何資料。');
   return { count: n, at: parsed.at };
 }
 
 function showBackup() {
   const code = exportData();
+  // 文字框關掉 iPhone 鍵盤的自動修正與自動大寫，否則貼上的 SOL1 會被改成 sol1
+  const noAuto = 'autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off"';
   const m = showModal({
     title: '資料備份',
     html: `<p class="note">內容包含統計、設定與進行中的牌局。複製這段文字保存，換手機或清除瀏覽器資料後貼回來就能還原。</p>
-      <textarea id="backup-out" readonly rows="4"></textarea>
+      <textarea id="backup-out" readonly rows="4" ${noAuto}></textarea>
       <div class="row-btns"><button id="backup-copy" class="btn small">複製</button><span id="backup-msg" class="note"></span></div>
       <p class="note" style="margin-top:14px">還原：把之前複製的文字貼在下面，會覆蓋目前的資料。</p>
-      <textarea id="backup-in" rows="3" placeholder="${BACKUP_PREFIX}…"></textarea>`,
-    buttons: [{ label: '關閉' }, { label: '匯入並還原', primary: true, onClick: () => doImport(m.el.querySelector('#backup-in').value) }],
+      <textarea id="backup-in" rows="3" placeholder="${BACKUP_PREFIX}…" ${noAuto}></textarea>
+      <p id="backup-err" class="field-err"></p>`,
+    buttons: [
+      { label: '關閉' },
+      {
+        label: '匯入並還原',
+        primary: true,
+        noClose: true, // 失敗時留在對話框，把原因顯示在文字框下方讓人修正
+        onClick: () => {
+          const input = m.el.querySelector('#backup-in');
+          let result;
+          try {
+            result = importData(input.value);
+          } catch (e) {
+            m.el.querySelector('#backup-err').textContent = '匯入失敗：' + e.message;
+            input.classList.add('invalid');
+            return;
+          }
+          m.close();
+          applyImported(result);
+        },
+      },
+    ],
   });
   const out = m.el.querySelector('#backup-out');
   out.value = code;
+  const input = m.el.querySelector('#backup-in');
+  input.addEventListener('input', () => {
+    input.classList.remove('invalid');
+    m.el.querySelector('#backup-err').textContent = '';
+  });
   m.el.querySelector('#backup-copy').addEventListener('click', async () => {
     const msg = m.el.querySelector('#backup-msg');
-    try {
-      await navigator.clipboard.writeText(code);
+    if (await copyText(code)) {
       msg.textContent = '已複製';
-    } catch {
+    } else {
       out.focus();
-      out.select();
-      msg.textContent = '請長按文字框全選複製';
+      out.setSelectionRange(0, code.length);
+      msg.textContent = '無法自動複製，請長按文字框選「全選」再「拷貝」';
     }
   });
 }
 
-function doImport(text) {
-  let result;
+// 複製到剪貼簿：Clipboard API 只在 HTTPS 提供，不行就用暫時的文字框加舊式 execCommand（iPhone、區網 http 都可用）
+async function copyText(text) {
   try {
-    result = importData(text);
-  } catch (e) {
-    toast('匯入失敗：' + e.message, null, 4000);
-    return;
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {}
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', ''); // 先設唯讀，iPhone 才不會彈鍵盤
+  ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px;-webkit-user-select:text;user-select:text';
+  document.body.appendChild(ta);
+  try {
+    // execCommand 複製的是「目前焦點元素」的選取範圍，所以一定要先 focus；
+    // iPhone 對唯讀欄位的 select() 沒反應，要暫時變成可編輯並用 Range 選取
+    ta.focus({ preventScroll: true });
+    ta.contentEditable = 'true';
+    ta.readOnly = false;
+    const range = document.createRange();
+    range.selectNodeContents(ta);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    ta.setSelectionRange(0, text.length);
+    return document.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    ta.remove();
   }
+}
+
+function applyImported(result) {
   settings = { ...DEFAULT_SETTINGS, ...load('sol.settings', {}) };
   applySettings();
   if (!current) renderHome();
   toast(`已還原 ${result.count} 筆資料`);
 }
 
+// 標題列副標：局號加上難度選項，例如「第 123456 局 · 翻 3 張」
+function dealLabel(game) {
+  const sub = game.subtitle();
+  return `第 ${game.dealNumber} 局` + (sub ? ` · ${sub}` : '');
+}
+
+// 複製局號：對話框大字顯示純數字並立刻複製到剪貼簿（只有數字，直接貼進「輸入局號」就能用）
+// 數字可長按選取，「複製」按鈕可重試
+function showDealCode() {
+  const g = current.game;
+  const n = String(g.dealNumber);
+  const m = showModal({
+    title: `${g.meta.name} 局號`,
+    html: `<p class="deal-code">${n}</p><p id="deal-copy-msg" class="note deal-copy-msg"></p>`,
+    buttons: [{ label: '關閉' }, { label: '複製', primary: true, noClose: true, onClick: () => copyDealCode() }],
+  });
+  const copyDealCode = async () => {
+    m.el.querySelector('#deal-copy-msg').textContent = (await copyText(n)) ? '已複製' : '無法自動複製，請長按數字選取後拷貝';
+  };
+  copyDealCode();
+}
+
 function showMenu() {
   const g = current.game;
-  const m = showModal({ title: g.meta.name, html: '<div class="menu-list"></div>' });
+  const m = showModal({ title: g.meta.name, html: `<p class="note deal-note">${dealLabel(g)}</p><div class="menu-list"></div>` });
   const list = m.el.querySelector('.menu-list');
   const item = (label, fn) => {
     const b = document.createElement('button');
@@ -729,34 +825,59 @@ function showMenu() {
     list.appendChild(b);
   };
   item('回到這局開頭', confirmRestart);
+  item('複製局號…', showDealCode);
+  item('輸入局號…', showDealInput);
   item('規則說明', () => showRules(g.meta.id));
   item('統計', () => showStats(g.meta.id));
   item('設定', showSettings);
-  if (g.meta.id === 'freecell') item('輸入牌局編號…', showDealInput);
   item('回到選單', goHome);
 }
 
+// 輸入局號開新局：新接龍上限 1000000（與 Windows 相同），其他遊戲的局號就是種子，上限 2^31 − 1
 function showDealInput() {
+  const g = current.game;
+  const max = g.meta.maxDeal || MAX_SEED;
+  const note = g.meta.dealNote ? `<p class="note">${g.meta.dealNote}</p>` : '';
+  const example = g.meta.id === 'freecell' ? 11982 : g.dealNumber;
+  const digits = String(max).length;
+  // 用 type=text 而不是 number：number 不吃 maxlength，也擋不住 e、+、- 這些字元
   const m = showModal({
-    title: '輸入牌局編號',
-    html: '<p>輸入 1 到 32000 之間的編號，與 Windows 新接龍的牌局相同。</p><input id="deal-input" type="number" min="1" max="32000" inputmode="numeric" placeholder="例如 11982">',
+    title: '輸入局號',
+    html: `<p>輸入 1 到 ${max} 之間的局號，就能玩到和別人同一局。目前是第 ${g.dealNumber} 局。</p>${note}<input id="deal-input" class="deal-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="${digits}" autocomplete="off" enterkeyhint="go" placeholder="例如 ${example}"><p id="deal-err" class="field-err"></p>`,
     buttons: [
       { label: '取消' },
       {
         label: '開始',
         primary: true,
+        noClose: true, // 驗證失敗要留在對話框，所以自己關
         onClick: () => {
-          const v = parseInt(m.el.querySelector('#deal-input').value, 10);
-          if (!v || v < 1 || v > 32000) {
-            toast('請輸入 1 到 32000 的數字');
+          const input = m.el.querySelector('#deal-input');
+          const v = parseInt(input.value, 10);
+          if (!v || v < 1 || v > max) {
+            m.el.querySelector('#deal-err').textContent = input.value ? `局號必須在 1 到 ${max} 之間` : '請輸入局號';
+            input.classList.add('invalid');
+            input.focus();
+            input.select();
             return;
           }
+          m.close();
           newGame('new', { deal: v });
         },
       },
     ],
   });
-  setTimeout(() => m.el.querySelector('#deal-input').focus(), 50);
+  const input = m.el.querySelector('#deal-input');
+  // 只留數字並限制位數（貼上也適用），一改就清掉錯誤提示
+  input.addEventListener('input', () => {
+    const clean = input.value.replace(/\D/g, '').slice(0, digits);
+    if (clean !== input.value) input.value = clean;
+    input.classList.remove('invalid');
+    m.el.querySelector('#deal-err').textContent = '';
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') m.el.querySelector('.modal-buttons .btn.primary').click();
+  });
+  setTimeout(() => input.focus(), 50);
 }
 
 function confirmNewGame() {
@@ -879,13 +1000,22 @@ function init() {
   document.addEventListener('pointerdown', Sound.primeAudio, { once: true });
 
   // iPhone Safari 雙擊會放大頁面：第二下快速點擊時取消預設行為
-  // 按鈕與輸入框除外（它們靠 CSS touch-action 處理，且需要保留 click）
+  // 按鈕也一併攔下（CSS touch-action 在某些 iOS 版本不可靠），手指還在按鈕上就由程式補發 click，連點復原不會漏
+  // 輸入框、開關、連結除外：它們需要預設行為（對焦、切換）
   let lastTouchEnd = 0;
   document.addEventListener(
     'touchend',
     (e) => {
       const now = Date.now();
-      if (now - lastTouchEnd < 350 && !e.target.closest('button, input, select, label, a')) e.preventDefault();
+      if (now - lastTouchEnd < 350 && !e.target.closest('input, textarea, select, label, a')) {
+        e.preventDefault();
+        const btn = e.target.closest('button');
+        const t = e.changedTouches && e.changedTouches[0];
+        if (btn && t) {
+          const r = btn.getBoundingClientRect();
+          if (t.clientX >= r.left && t.clientX <= r.right && t.clientY >= r.top && t.clientY <= r.bottom) btn.click();
+        }
+      }
       lastTouchEnd = now;
     },
     { passive: false }

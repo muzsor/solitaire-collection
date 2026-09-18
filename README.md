@@ -5,7 +5,7 @@
 <h1 align="center">🃏 接龍合集</h1>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.2-blue.svg" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.3-blue.svg" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="#-安裝到-iphone"><img src="https://img.shields.io/badge/PWA-ready-success.svg" alt="PWA"></a>
 </p>
@@ -36,11 +36,11 @@
 |---|---|---|
 | ♠️ **經典接龍** Klondike | 翻 1 張 / 翻 3 張 | 有，含時間獎勵 |
 | 🕷️ **蜘蛛接龍** Spider | 1 / 2 / 4 花色 | 有 |
-| 🔓 **新接龍** FreeCell | 暫存格 4 / 3 / 2 / 1，可輸入牌局編號 1–32000 | 計時與步數 |
+| 🔓 **新接龍** FreeCell | 暫存格 4 / 3 / 2 / 1，局號 1–1,000,000 與 Windows 相同 | 計時與步數 |
 | 🔺 **金字塔** Pyramid | 重翻牌堆 無限 / 2 次 / 不可 | 有 |
 | ⛰️ **三峰** TriPeaks | — | 有，連消加分 |
 
-難度可在首頁卡片或設定頁切換，下一局生效。新接龍的牌局編號與 Windows 新接龍相同，第 11982 局一樣無解。
+難度可在首頁卡片或設定頁切換，下一局生效。每一局都有局號，從遊戲選單可以複製或輸入局號，和朋友玩同一副牌。新接龍的局號與 Windows 新接龍相同（1–1,000,000），前 100 萬局中同樣有 8 局無解，最有名的是第 11982 局。
 
 ---
 
@@ -71,6 +71,7 @@
 - 🔁 長按「復原」或從選單回到這局開頭，同一副牌重來且不算放棄
 - 💾 每款各自存檔，切換遊戲或關閉後再開都能繼續，連復原歷史也保留
 - 📊 勝場、勝率、最佳時間、最高分、連勝統計
+- 🔢 每局都有局號，選單可複製或輸入局號，和朋友玩同一副牌；新接龍局號與 Windows 相同
 - 🔄 直向、橫向都可玩，轉向自動重排，牌太小時自動放大角標
 - 🎨 左手模式、大字模式、桌面與牌背顏色、音效、計時器
 - 🧮 金字塔附「湊 13」對照表，選牌時對應組合會亮起

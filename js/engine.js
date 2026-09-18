@@ -245,6 +245,15 @@ export class Game {
     return g;
   }
 
+  // 局號：預設就是種子，同一局號加同一組選項會發出同一副牌；新接龍覆寫成微軟牌局編號
+  get dealNumber() {
+    return this.seed;
+  }
+  // 用局號開新局（選單「輸入局號」）；新接龍覆寫，把編號放進 options.deal
+  static fromDeal(deal, options) {
+    return new this(deal, options);
+  }
+
   // ---- 各遊戲覆寫 ----
   init() {}
   extraState() {

@@ -10,7 +10,16 @@ export class FreeCell extends Game {
     desc: '全部牌面朝上，四個暫存格。幾乎每局都有解，靠推理取勝。',
     hasScore: false,
     hasAutoCollect: true,
+    maxDeal: 1000000, // 與 Windows 相同的局號範圍
+    dealNote: '局號與 Windows 新接龍相同，前 100 萬局中有 8 局無解（例如第 11982 局）。',
   };
+
+  get dealNumber() {
+    return this.options.deal;
+  }
+  static fromDeal(deal, options) {
+    return new FreeCell(deal, { ...options, deal });
+  }
 
   init() {
     // 暫存格數量 4（標準）/ 3 / 2 / 1，越少越難
@@ -21,7 +30,7 @@ export class FreeCell extends Game {
     this.foundations = [0, 1, 2, 3].map((i) => this.addPile('f' + i, 'foundation', { label: 'A' }));
     this.tableau = [];
     for (let i = 0; i < 8; i++) this.tableau.push(this.addPile('t' + i, 'tableau'));
-    const deal = this.options.deal || (this.seed % 32000) + 1;
+    const deal = this.options.deal || (this.seed % FreeCell.meta.maxDeal) + 1;
     this.options.deal = deal;
     const cols = msFreeCellDeal(deal);
     const cards = [];
@@ -37,7 +46,7 @@ export class FreeCell extends Game {
 
   subtitle() {
     const n = this.options.cells;
-    return `第 ${this.options.deal} 局` + (n === 4 ? '' : ` · ${n} 格`);
+    return n === 4 ? '' : `${n} 格`;
   }
 
   layout(orient) {

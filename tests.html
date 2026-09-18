@@ -21,7 +21,7 @@
 <table id="results"></table>
 
 <script type="module">
-import { msFreeCellDeal, mulberry32, shuffle } from './js/rng.js';
+import { msFreeCellDeal, mulberry32, shuffle, randomSeed, MAX_SEED } from './js/rng.js';
 import { makeDeck, isRed, RANK_LABEL } from './js/cards.js';
 import { Game } from './js/engine.js';
 import { Klondike } from './js/games/klondike.js';
@@ -88,6 +88,31 @@ test('Microsoft FreeCell 第 617 局第一排牌與 Windows 相同', () => {
 });
 
 // ---------- 引擎：復原、重來、存檔 ----------
+test('局號：新接龍隨機新局落在 1 到 1000000，指定局號可到 1000000', () => {
+  const g = newGame(FreeCell, 0x7fffffff, { cells: 4 });
+  ok(g.dealNumber >= 1 && g.dealNumber <= 1000000, `得到 ${g.dealNumber}`);
+  eq(newGame(FreeCell, 1, { cells: 4, deal: 1000000 }).dealNumber, 1000000);
+  eq(FreeCell.meta.maxDeal, 1000000);
+});
+test('局號：randomSeed 落在 1 到 2^31-1', () => {
+  for (let i = 0; i < 2000; i++) {
+    const s = randomSeed();
+    ok(Number.isInteger(s) && s >= 1 && s <= MAX_SEED, `得到 ${s}`);
+  }
+});
+test('局號：fromDeal 與同種子的新局牌序一致，新接龍的局號放在 options.deal', () => {
+  const a = Klondike.fromDeal(123456, { draw3: true }).boot();
+  const b = newGame(Klondike, 123456, { draw3: true });
+  eq(a.snapshot(), b.snapshot());
+  eq(a.dealNumber, 123456);
+  eq(newGame(Spider, 42, { suits: 2 }).dealNumber, 42);
+  const f = FreeCell.fromDeal(617, { cells: 4 }).boot();
+  eq(f.dealNumber, 617);
+  eq(f.options.deal, 617);
+  eq(f.subtitle(), '');
+  eq(FreeCell.fromDeal(617, { cells: 2 }).boot().subtitle(), '2 格');
+});
+
 test('引擎：commit 之後可以 undo 回到原狀', () => {
   const g = newGame(Klondike, 42, {});
   const before = JSON.stringify(g.snapshot());

@@ -19,8 +19,10 @@
   :root { --safe-bottom: min(env(safe-area-inset-bottom), 40px); }
 }
 
-/* touch-action 不會繼承，所以每個元素都設，關掉 iPhone Safari 的雙擊放大 */
-* { box-sizing: border-box; touch-action: manipulation; }
+/* iPhone Safari 無視 user-scalable=no，但會尊重 touch-action：
+   pan-x pan-y 只允許捲動，雙指縮放與雙擊放大都關掉（manipulation 仍允許雙指縮放，對話框開著時就能放大、關掉後卻縮不回來）。
+   touch-action 不會繼承，所以每個元素都設 */
+* { box-sizing: border-box; touch-action: pan-x pan-y; }
 html, body {
   margin: 0;
   height: 100%;
@@ -34,7 +36,7 @@ body {
   position: fixed;
   inset: 0;
   overscroll-behavior: none;
-  touch-action: manipulation;
+  touch-action: pan-x pan-y;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
@@ -65,9 +67,10 @@ button.icon {
   line-height: 1;
   padding: 4px 8px;
 }
-.title { display: flex; flex-direction: column; line-height: 1.15; }
+.title { display: flex; flex-direction: column; line-height: 1.15; flex: 1; min-width: 0; }
 .title span:first-child { font-weight: 700; font-size: 16px; }
-#g-sub { font-size: 12px; opacity: 0.75; }
+/* 副標含局號，太窄時截尾，完整局號在選單裡看 */
+#g-sub { font-size: 12px; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hud { margin-left: auto; display: flex; gap: 12px; font-variant-numeric: tabular-nums; font-size: 14px; opacity: 0.92; }
 .no-timer #hud-time { display: none; }
 
@@ -170,12 +173,19 @@ button.icon {
 /* ---- 資料備份 ---- */
 .modal-body textarea {
   width: 100%;
-  font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace;
+  font: 16px/1.4 ui-monospace, Menlo, Consolas, monospace; /* iPhone 對焦小於 16px 的輸入框會放大整頁 */
   padding: 8px;
   border: 1px solid #bbb;
   border-radius: 8px;
   resize: vertical;
   word-break: break-all;
+}
+/* 全頁關了文字選取（body 的 user-select: none），輸入欄位要開回來，iPhone 才能長按選取、全選、貼上 */
+.modal-body textarea,
+.modal-body input {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 .row-btns { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .row-btns .btn,
@@ -338,14 +348,19 @@ button.icon {
 .modal-body p { margin: 4px 0; }
 .modal-body ul { padding-left: 20px; margin: 4px 0; }
 .modal-body li { margin: 3px 0; }
-.modal-body input[type='number'] {
+.modal-body input[type='number'],
+.modal-body input.deal-input {
   width: 100%;
-  font-size: 18px;
+  font-size: 18px; /* 16px 以上，iPhone 對焦才不會放大 */
   padding: 10px;
   border: 1px solid #bbb;
   border-radius: 8px;
   margin-top: 8px;
+  font-variant-numeric: tabular-nums;
 }
+.modal-body input.invalid,
+.modal-body textarea.invalid { border-color: #c8242c; outline-color: #c8242c; }
+.field-err { color: #c8242c; font-size: 13px; min-height: 1.3em; margin: 6px 0 0; }
 .modal-buttons {
   display: flex;
   gap: 8px;
@@ -371,6 +386,19 @@ button.icon {
 .setting-row .seg { border-color: #bbb; color: #222; }
 .setting-row .seg button.on { background: #2f7d4f; color: #fff; }
 .note { font-size: 13px; color: #777; margin-top: 10px; }
+.deal-note { margin: 0 0 6px; }
+.deal-code {
+  margin: 10px 0 4px;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+.deal-copy-msg { text-align: center; margin: 0 0 6px; min-height: 1.3em; }
 .switch { position: relative; display: inline-block; width: 50px; height: 30px; flex-shrink: 0; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch span { position: absolute; inset: 0; background: #ccc; border-radius: 15px; transition: 0.2s; }
