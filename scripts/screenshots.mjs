@@ -38,7 +38,7 @@ const SHOTS = [
   { file: 'home', t: '五款接龍，一次收齊', s: '免費、無廣告、可離線，加到主畫面就能玩' },
   { file: 'klondike', game: 'klondike', t: '經典接龍', s: '翻 1 張或 3 張，含時間獎勵計分' },
   { file: 'spider', game: 'spider', t: '蜘蛛接龍', s: '1、2、4 花色三種難度' },
-  { file: 'freecell', game: 'freecell', t: '新接龍', s: '牌局編號與 Windows 相同，1–32000 局' },
+  { file: 'freecell', game: 'freecell', t: '新接龍', s: '牌局編號與 Windows 相同，1–1,000,000 局' },
   { file: 'pyramid', game: 'pyramid', t: '金字塔', s: '「湊 13」對照表，選牌時對應組合亮起' },
   { file: 'tripeaks', game: 'tripeaks', t: '三峰', s: '連消加分，一口氣清光三座山' },
   { file: 'landscape', game: 'klondike', land: true, t: '直向、橫向都能玩', s: '轉向自動重排，牌太小時自動放大角標' },

@@ -310,6 +310,15 @@ export class Game {
   winBonus() {
     return 0;
   }
+  // 疊牌欄最上面那段「照順序、可以整串拿起」的牌從第幾張開始。
+  // 渲染器把這張以下的面朝上牌稍微調暗，玩家一眼看出上面那串接得多長（蜘蛛、新接龍最有用）。
+  // 預設沿用 canPick：從最上面往下，能拿起就算在串裡。經典接龍面朝上的牌本來就都成串，所以看不出差別
+  runStart(pile) {
+    if (pile.kind !== 'tableau' || pile.empty) return 0;
+    let i = pile.size - 1;
+    while (i > 0 && this.canPick(pile, i - 1)) i--;
+    return i;
+  }
   // 牌桌上的附加面板（例如金字塔的湊 13 小表），由 layout().extras 指定位置
   extraHtml() {
     return '';

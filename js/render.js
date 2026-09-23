@@ -54,13 +54,19 @@ export class Renderer {
     this.pileEls.clear();
     this.pos.clear();
     this.extraEls = new Map();
+    this.badgeEls = new Map();
     for (const p of game.piles) {
       const d = document.createElement('div');
       d.className = `pile kind-${p.kind}` + (p.placeholder ? '' : ' ghost');
       d.dataset.pile = p.id;
-      d.innerHTML = `<span class="plabel">${p.label}</span><span class="pbadge"></span>`;
+      d.innerHTML = `<span class="plabel">${p.label}</span>`;
       this.el.appendChild(d);
       this.pileEls.set(p.id, d);
+      // 牌堆下方的數字獨立一層、疊在所有牌之上；放在牌堆元素裡會被牌堆上幾十張牌的陰影蓋住
+      const bd = document.createElement('div');
+      bd.className = 'pbadge';
+      this.el.appendChild(bd);
+      this.badgeEls.set(p.id, bd);
     }
     for (const c of game.cards) {
       const d = createCardEl(c);
@@ -136,6 +142,7 @@ export class Renderer {
       const d = this.pileEls.get(p.id);
       d.style.transform = `translate3d(${px}px,${py}px,0)`;
       d.style.zIndex = 1 + (p.meta.z || 0);
+      this.badgeEls.get(p.id).style.transform = `translate3d(${px}px,${py + ch}px,0)`;
     }
     // 附加面板
     const wanted = new Set();
@@ -202,6 +209,7 @@ export class Renderer {
       let minX = 0;
       let maxX = 0;
       let maxY = 0;
+      const runStart = g.runStart(p); // 這張以下不成串，調暗
       p.cards.forEach((c, i) => {
         const el = this.cardEls.get(c.id);
         const x = pp.x + offsets[i].x;
@@ -212,6 +220,9 @@ export class Renderer {
           el.style.zIndex = 10 + (p.meta.z || 0) * 40 + i;
         }
         el.classList.toggle('down', !c.faceUp);
+        el.classList.toggle('dim', i < runStart);
+        // 疊在同一個位置的牌（牌堆、基礎堆）只留最上面那張的陰影，幾十層陰影疊起來會變成一大塊黑
+        el.classList.toggle('buried', pp.fan === 'none' && i < n - 1);
         el.classList.toggle('selected', g.selected === c);
         minX = Math.min(minX, offsets[i].x);
         maxX = Math.max(maxX, offsets[i].x);
@@ -219,7 +230,7 @@ export class Renderer {
       });
       this.pileRects.set(p.id, { x: pp.x + minX, y: pp.y, w: cw + (maxX - minX), h: ch + maxY });
       const pe = this.pileEls.get(p.id);
-      pe.querySelector('.pbadge').textContent = g.badge(p);
+      this.badgeEls.get(p.id).textContent = g.badge(p);
       pe.classList.toggle('has-cards', n > 0);
     }
     for (const [id, el] of this.extraEls) g.decorateExtra(id, el);

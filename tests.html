@@ -327,7 +327,37 @@ test('Spider：有空欄時不能發牌', () => {
   ok(msg.length > 0);
 });
 
+test('順序串標示：蜘蛛只有最上面同花色連續的牌算一串', () => {
+  const g = newGame(Spider, 3, { suits: 4 });
+  for (const p of g.piles) p.cards = [];
+  const t0 = g.tableau[0];
+  put(g, t0, [card(g, 'S', 10), card(g, 'H', 9), card(g, 'S', 8), card(g, 'S', 7)]);
+  eq(g.runStart(t0), 2, '只有黑桃 8-7 成串，10 與紅心 9 要調暗');
+  t0.cards = [];
+  put(g, t0, [card(g, 'S', 10), card(g, 'S', 9), card(g, 'S', 8)]);
+  t0.cards[0].faceUp = false;
+  eq(g.runStart(t0), 1, '背面牌不算在串裡');
+  eq(g.runStart(g.tableau[1]), 0, '空欄');
+  eq(g.runStart(g.foundation), 0, '疊牌欄以外不調暗');
+});
+
 // ---------- 新接龍 ----------
+test('順序串標示：新接龍只有最上面紅黑交錯遞減的牌算一串', () => {
+  const g = newGame(FreeCell, 1, { cells: 4 });
+  for (const p of g.piles) p.cards = [];
+  const t0 = g.tableau[0];
+  put(g, t0, [card(g, 'S', 9), card(g, 'H', 8), card(g, 'C', 7)]);
+  eq(g.runStart(t0), 0, '整欄都成串');
+  t0.cards = [];
+  put(g, t0, [card(g, 'S', 9), card(g, 'S', 8), card(g, 'H', 7), card(g, 'D', 5)]);
+  eq(g.runStart(t0), 3, '7 與 5 不相連，只有最上面的 5 算一串');
+  t0.cards.pop();
+  eq(g.runStart(t0), 1, '黑 9 與黑 8 同色，從 8 開始才成串');
+});
+test('順序串標示：經典接龍面朝上的牌都不調暗', () => {
+  const g = newGame(Klondike, 8, {});
+  for (const t of g.tableau) eq(g.runStart(t), t.cards.findIndex((c) => c.faceUp));
+});
 test('FreeCell：暫存格數量選項', () => {
   eq(newGame(FreeCell, 1, { cells: 4 }).cells.length, 4);
   eq(newGame(FreeCell, 1, { cells: 2 }).cells.length, 2);

@@ -5,7 +5,7 @@
 <h1 align="center">🃏 接龍合集</h1>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.4-blue.svg" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.5-blue.svg" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="#-安裝到-iphone"><img src="https://img.shields.io/badge/PWA-ready-success.svg" alt="PWA"></a>
 </p>
@@ -67,6 +67,7 @@
 ## ✨ 功能
 
 - 👆 拖曳整疊搬動，或點一下自動移到最合理的位置
+- 🔦 蜘蛛接龍、新接龍把不成串的牌稍微調暗，一眼看出最上面那串能整疊搬幾張
 - ↩️ 無限復原、💡 提示、⏫ 一鍵收牌
 - 🔁 長按「復原」或從選單回到這局開頭，同一副牌重來且不算放棄
 - 💾 每款各自存檔，切換遊戲或關閉後再開都能繼續，連復原歷史也保留

@@ -201,9 +201,10 @@ function renderHome() {
     const foot = card.querySelector('.gcard-foot');
     const ctrl = optionControl(m.id, false);
     if (ctrl) foot.appendChild(ctrl);
-    const spacer = document.createElement('span');
-    spacer.className = 'spacer';
-    foot.appendChild(spacer);
+    // 按鈕組：「繼續」與「新局」包在同一組，空間不夠時整組一起換到下一行，不會被拆開；一律靠右
+    const actions = document.createElement('div');
+    actions.className = 'gcard-actions';
+    foot.appendChild(actions);
     if (inProgress) {
       const b1 = button('繼續', 'btn primary', () => startGame(m.id, 'resume'));
       const b2 = button('新局', 'btn', () => {
@@ -223,9 +224,9 @@ function renderHome() {
           ],
         });
       });
-      foot.append(b1, b2);
+      actions.append(b1, b2);
     } else {
-      foot.appendChild(button('開始', 'btn primary', () => startGame(m.id, 'new')));
+      actions.appendChild(button('開始', 'btn primary', () => startGame(m.id, 'new')));
     }
     card.querySelector('.gcard-main').addEventListener('click', () => startGame(m.id, inProgress ? 'resume' : 'new'));
     list.appendChild(card);

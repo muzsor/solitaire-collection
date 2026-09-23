@@ -93,7 +93,8 @@ button.icon {
 .gcard-desc { font-size: 14px; opacity: 0.88; margin: 6px 0; line-height: 1.45; }
 .gcard-stats { font-size: 13px; opacity: 0.75; }
 .gcard-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-.gcard-foot .spacer { flex: 1; }
+/* 按鈕組不換行、整組靠右；跟難度選項擠不下時整組換到下一行 */
+.gcard-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: nowrap; }
 .seg { display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 8px; overflow: hidden; }
 .seg button { background: none; border: none; color: inherit; padding: 6px 12px; font-size: 14px; }
 .seg button.on { background: rgba(255, 255, 255, 0.3); font-weight: 700; }
@@ -211,19 +212,25 @@ button.icon {
   font-size: calc(var(--cw) * 0.42);
 }
 .pile.ghost { border-color: transparent; }
-.pile .pbadge {
+/* 牌堆下方的數字（剩幾張、剩幾次重翻、收了幾串）：獨立一層、疊在所有牌之上，
+   位置由 render.js 設在牌堆正下方；窄牌時字級至少 11px，太寬就往兩側溢出、保持置中 */
+.pbadge {
   position: absolute;
-  bottom: calc(var(--cw) * -0.3);
-  left: -10px;
-  right: -10px;
-  text-align: center;
-  font-size: calc(var(--cw) * 0.22);
+  left: 0;
+  top: max(3px, calc(var(--cw) * 0.05));
+  width: var(--cw);
+  display: flex;
+  justify-content: center;
+  white-space: nowrap;
+  font-size: max(11px, calc(var(--cw) * 0.22));
   line-height: 1.1;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.92);
   font-weight: 600;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   pointer-events: none;
+  z-index: 900; /* 高於所有牌（最多約 300），低於拖曳中的牌（1000 起） */
 }
+.pbadge:empty { display: none; }
 .pile.kind-stock.has-cards .plabel { visibility: hidden; }
 
 /* ---- 附加面板（金字塔湊 13 小表） ---- */
@@ -263,6 +270,7 @@ button.icon {
   touch-action: none;
 }
 .no-anim .card { transition: none; }
+.card.buried { box-shadow: none; }
 .card.dragging { transition: none; box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45); }
 .card .face { position: absolute; inset: 0; }
 .card .corner {
@@ -308,6 +316,20 @@ button.icon {
 .narrow .card .corner.br { display: none; }
 .narrow .card .corner.tl { top: 3%; left: 5%; font-size: calc(var(--cw) * 0.42); }
 .narrow .card .mid { font-size: calc(var(--cw) * 0.45); opacity: 0.5; }
+
+/* 疊牌欄裡不屬於最上面那串順序牌的面朝上牌蓋一層淡黑，一眼看出哪一段能整串搬（蜘蛛、新接龍）。
+   用 ::after 疊一層而不是 filter，才不會把提示與選取的外光一起調暗；inset -1px 連邊框一起蓋 */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+.card.dim:not(.down)::after { opacity: 1; }
 
 .card.selected { box-shadow: 0 0 0 3px #4fc3f7, 0 0 12px 3px rgba(79, 195, 247, 0.8); }
 .card.hint, .pile.hint { animation: hintglow 1.5s ease; }
