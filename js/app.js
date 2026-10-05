@@ -183,7 +183,7 @@ function renderHome() {
     const m = G.meta;
     const st = getStats(m.id);
     const saved = load(saveKey(m.id), null);
-    const inProgress = saved && saved.game && saved.game.moves > 0 && !saved.game.won;
+    const inProgress = startedSave(saved);
     const card = document.createElement('div');
     card.className = 'gcard';
     const rate = st.played ? Math.round((st.won / st.played) * 100) : 0;
@@ -264,9 +264,14 @@ function segmented(items, value, onChange) {
 }
 
 // ---------- 遊戲流程 ----------
+// 存檔裡的這局已經開始了嗎：走過任何一步就算，「回到這局開頭」後步數歸零也還算（局數已經記過）
+function startedSave(saved) {
+  return !!saved && !!saved.game && !saved.game.won && (saved.game.moves > 0 || !!saved.counted);
+}
+
 function abandonSaved(id) {
   const saved = load(saveKey(id), null);
-  if (saved && saved.game && saved.game.moves > 0 && !saved.game.won) {
+  if (startedSave(saved)) {
     const st = getStats(id);
     st.streak = 0;
     setStats(id, st);
@@ -277,7 +282,7 @@ function abandonSaved(id) {
 function abandonCurrent() {
   if (!current) return;
   const g = current.game;
-  if (!g.won && g.moves > 0) {
+  if (!g.won && current.counted) {
     const st = getStats(g.meta.id);
     st.streak = 0;
     setStats(g.meta.id, st);
@@ -289,12 +294,14 @@ function startGame(id, mode, extraOptions) {
   const Cls = GAME_BY_ID[id];
   let game = null;
   let elapsed = 0;
+  let counted = false;
   if (mode === 'resume') {
     const data = load(saveKey(id), null);
     if (data && data.game) {
       try {
         game = Game.deserialize(Cls, data.game);
         elapsed = data.elapsed || 0;
+        counted = !!data.counted;
       } catch (e) {
         console.error('存檔讀取失敗', e);
         game = null;
@@ -302,23 +309,19 @@ function startGame(id, mode, extraOptions) {
     }
   }
   if (!game) {
-    if (mode === 'replay' && current && current.game.meta.id === id) {
-      game = new Cls(current.game.seed, current.game.options);
-    } else {
-      const opts = { ...optionsFor(id), ...(extraOptions || {}) };
-      // 指定局號（選單「輸入局號」）：新接龍存進 options.deal，其他遊戲的局號就是種子
-      const deal = opts.deal;
-      delete opts.deal;
-      game = deal ? Cls.fromDeal(deal, opts) : new Cls(randomSeed(), opts);
-    }
-    game.boot();
+    const opts = { ...optionsFor(id), ...(extraOptions || {}) };
+    // 指定局號（選單「輸入局號」）：新接龍存進 options.deal，其他遊戲的局號就是種子
+    const deal = opts.deal;
+    delete opts.deal;
+    game = (deal ? Cls.fromDeal(deal, opts) : new Cls(randomSeed(), opts)).boot();
   }
-  setupGame(game, elapsed);
+  setupGame(game, elapsed, counted);
 }
 
-function setupGame(game, elapsed) {
+// counted：這局是否已經記過一局（存檔帶回來的，「回到這局開頭」後步數歸零也不會重複記）
+function setupGame(game, elapsed, counted = false) {
   stopTimer();
-  current = { game, elapsed, runningSince: null, counted: game.moves > 0, lostShown: false };
+  current = { game, elapsed, runningSince: null, counted: counted || game.moves > 0, lostShown: false };
   const m = game.meta;
   showScreen('game');
   $('#g-title').textContent = m.name;
@@ -328,7 +331,7 @@ function setupGame(game, elapsed) {
   renderer.setGame(game, { deal: game.moves === 0 });
   game.on('change', onChange);
   game.on('win', onWin);
-  game.on('message', (msg) => toast(msg));
+  game.on('message', (msg) => toast(msg, null, Math.max(2500, msg.length * 110))); // 長的說明多留一點時間讀
   updateHud();
   updateDeadEnd();
   saveCurrent();
@@ -356,6 +359,7 @@ function updateDeadEnd() {
   const g = current && current.game;
   const stuck = !!g && !g.won && g.moves > 0 && !g.hasMoves();
   bar.classList.toggle('hidden', !stuck);
+  if (stuck) bar.querySelector('span').textContent = g.deadEndReason() || '沒有可走的步了';
   if (stuck && !current.lostShown) {
     current.lostShown = true;
     Sound.playError();
@@ -455,7 +459,7 @@ function saveCurrent() {
     remove(saveKey(g.meta.id));
     return;
   }
-  save(saveKey(g.meta.id), { game: g.serialize(), elapsed: getElapsed() });
+  save(saveKey(g.meta.id), { game: g.serialize(), elapsed: getElapsed(), counted: current.counted });
 }
 
 function goHome() {
@@ -902,17 +906,16 @@ function showDealInput() {
 
 function confirmNewGame() {
   const g = current.game;
-  const inProgress = g.moves > 0 && !g.won;
+  // 已經開始的局（含回到開頭後還沒再走的）發新局算放棄；走過步才有「回到這局開頭」可選
+  const started = current.counted && !g.won;
+  const canRestart = g.moves > 0 && !g.won;
   const buttons = [{ label: '取消' }];
-  if (inProgress) buttons.push({ label: '回到這局開頭', onClick: restartCurrent });
+  if (canRestart) buttons.push({ label: '回到這局開頭', onClick: restartCurrent });
   buttons.push({ label: '發新局', primary: true, onClick: () => newGame('new') });
-  showModal({
-    title: '新局',
-    html: inProgress
-      ? '<p><b>回到這局開頭</b>：同一副牌重來，不算放棄。<br><b>發新局</b>：目前這局算作放棄，連勝紀錄會歸零。</p>'
-      : '',
-    buttons,
-  });
+  let html = '';
+  if (canRestart) html = '<p><b>回到這局開頭</b>：同一副牌重來，不算放棄。<br><b>發新局</b>：目前這局算作放棄，連勝紀錄會歸零。</p>';
+  else if (started) html = '<p>目前這局算作放棄，連勝紀錄會歸零。</p>';
+  showModal({ title: '新局', html, buttons });
 }
 
 function autoCollect() {
@@ -922,7 +925,7 @@ function autoCollect() {
     if (g.autoCollectStep()) setTimeout(step, 130);
   };
   if (!g.autoCollectStep()) {
-    toast('目前沒有可以收的牌');
+    toast(g.collectBlockReason() || '目前沒有可以收的牌');
     return;
   }
   setTimeout(step, 130);
@@ -1051,10 +1054,19 @@ function init() {
     }
     if (!current || !current.game.undo()) toast('沒有可以復原的步。長按可回到這局開頭');
   });
+  // 提示：連按會依序換下一個建議，局面一變就從最好的那個重新開始
+  let hintAt = { key: null, i: 0 };
   $('#btn-hint').addEventListener('click', () => {
     if (!current) return;
-    const h = current.game.hint();
-    if (!renderer.showHint(h)) toast('找不到可走的步，這局可能卡住了');
+    const g = current.game;
+    const list = g.hints();
+    if (!list.length) {
+      toast((g.deadEndReason() || '找不到能推進局面的步，這局可能卡住了').replace('\n', '，'));
+      return;
+    }
+    const key = g.positionKey();
+    hintAt = { key, i: hintAt.key === key ? (hintAt.i + 1) % list.length : 0 };
+    renderer.showHint(list[hintAt.i]);
   });
   $('#btn-collect').addEventListener('click', autoCollect);
   $('#btn-new').addEventListener('click', confirmNewGame);

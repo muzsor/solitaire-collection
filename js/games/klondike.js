@@ -83,27 +83,36 @@ export class Klondike extends Game {
     return this.fits(c, to);
   }
 
-  // 卡死判定（保守）：疊牌欄之間還有任何移動、或牌堆／棄牌堆裡任何一張牌打得出去，都算還有路
-  hasMoves() {
-    for (const t of this.tableau) {
-      for (let i = 0; i < t.size; i++) {
-        if (!t.cards[i].faceUp) continue;
-        for (const f of this.foundations) if (this.canDrop(t, i, f)) return true;
-        for (const o of this.tableau) {
-          if (o === t || !this.canDrop(t, i, o)) continue;
-          if (o.empty && i === 0) continue; // 整欄 K 搬到空欄沒有意義
-          return true;
-        }
+  // 一直翻牌堆（含重翻）會不會翻到打得出去的牌，有的話翻牌堆才有意義。
+  // 模擬翻完一整輪：翻 3 張時只有每次翻出的最上面那張拿得到，不是牌堆裡每張都輪得到
+  stockUseful() {
+    const playable = (c) => this.foundations.some((f) => this.fits(c, f)) || this.tableau.some((t) => this.fits(c, t));
+    const n = this.options.draw3 ? 3 : 1;
+    let stock = [...this.stock.cards];
+    let waste = [...this.waste.cards];
+    const total = stock.length + waste.length;
+    for (let k = 0; k < total * 2 + 2 && total; k++) {
+      if (!stock.length) {
+        stock = waste.reverse(); // 重翻：棄牌堆整疊翻回牌堆
+        waste = [];
+        continue;
       }
-    }
-    for (const c of [...this.stock.cards, ...this.waste.cards]) {
-      for (const f of this.foundations) if (this.fits(c, f)) return true;
-      for (const t of this.tableau) if (this.fits(c, t)) return true;
-    }
-    for (const f of this.foundations) {
-      if (f.top) for (const t of this.tableau) if (this.fits(f.top, t) && !t.empty) return true;
+      for (let j = 0; j < n && stock.length; j++) waste.push(stock.pop());
+      if (playable(waste[waste.length - 1])) return true;
     }
     return false;
+  }
+  hasMoves() {
+    return this.stockUseful() || super.hasMoves();
+  }
+  deadEndReason() {
+    if (!this.stock.empty || !this.waste.empty) return '牌堆裡沒有能用的牌\n疊牌欄也沒有能推進的步';
+    return super.deadEndReason();
+  }
+  // 棄牌堆的牌接到疊牌欄，就是把一張牌拿進來用
+  moveValue(from, idx, to) {
+    if (from.kind === 'waste') return to.kind === 'foundation' ? 5 : 3;
+    return super.moveValue(from, idx, to);
   }
 
   drop(from, idx, to) {
@@ -187,11 +196,10 @@ export class Klondike extends Game {
     return false;
   }
 
-  hint() {
-    const h = super.hint();
-    if (h) return h;
-    if (!this.stock.empty || !this.waste.empty) return { pile: this.stock };
-    return null;
+  hints() {
+    const list = super.hints();
+    if (this.stockUseful()) list.push({ pile: this.stock });
+    return list;
   }
 
   badge(pile) {

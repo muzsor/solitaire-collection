@@ -19,6 +19,7 @@ const ASSETS = [
   './js/games/index.js',
   './js/games/klondike.js',
   './js/games/spider.js',
+  './js/games/spider-solver.js',
   './js/games/freecell.js',
   './js/games/pyramid.js',
   './js/games/tripeaks.js',

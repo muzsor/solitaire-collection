@@ -40,10 +40,6 @@ export function playPlace() {
   if (!enabled) return;
   blip(520, 0.06, 'triangle', 0.06);
 }
-export function playDeal() {
-  if (!enabled) return;
-  blip(300, 0.05, 'square', 0.03);
-}
 export function playError() {
   if (!enabled) return;
   blip(160, 0.12, 'sawtooth', 0.04);

@@ -170,7 +170,7 @@ button.icon {
   font-size: 14px;
   font-weight: 600;
 }
-.deadend span { flex: 1; }
+.deadend span { flex: 1; white-space: pre-line; } /* 說明文字用 \n 指定換行位置 */
 .btn.small { padding: 6px 10px; font-size: 13px; }
 .deadend .btn { background: rgba(255, 255, 255, 0.22); }
 .deadend .btn.primary { background: var(--accent); color: #222; }
@@ -317,7 +317,8 @@ button.icon {
 .narrow .card .corner.tl { top: 3%; left: 5%; font-size: calc(var(--cw) * 0.42); }
 .narrow .card .mid { font-size: calc(var(--cw) * 0.45); opacity: 0.5; }
 
-/* 疊牌欄裡不屬於最上面那串順序牌的面朝上牌蓋一層淡黑，一眼看出哪一段能整串搬（蜘蛛、新接龍）。
+/* 疊牌欄裡不屬於最上面那串順序牌的面朝上牌蓋一層淡黑，一眼看出哪一段能整串搬（蜘蛛、新接龍）；
+   金字塔則是被壓住、不能點的牌。
    用 ::after 疊一層而不是 filter，才不會把提示與選取的外光一起調暗；inset -1px 連邊框一起蓋 */
 .card::after {
   content: '';
@@ -330,6 +331,8 @@ button.icon {
   pointer-events: none;
 }
 .card.dim:not(.down)::after { opacity: 1; }
+/* 新接龍：成串、但超過這一刻能整疊搬的張數（暫存格、空欄不夠），蓋得比不成串的牌淡。越亮越能動 */
+.card.over-limit:not(.down)::after { opacity: 0.45; }
 
 .card.selected { box-shadow: 0 0 0 3px #4fc3f7, 0 0 12px 3px rgba(79, 195, 247, 0.8); }
 .card.hint, .pile.hint { animation: hintglow 1.5s ease; }

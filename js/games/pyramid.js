@@ -115,6 +115,12 @@ export class Pyramid extends Game {
     return idx === pile.size - 1 && this.isFree(pile);
   }
 
+  // 只有沒被壓住的牌與棄牌堆最上面那張能拿來配對，維持原本亮度；被壓住的牌、已消掉的完成堆都調暗，一眼看出現在能點哪幾張。
+  // 牌堆的牌面朝下，渲染器本來就不調暗背面牌
+  runStart(pile) {
+    return this.isFree(pile) ? pile.size - 1 : pile.size;
+  }
+
   canDrop(from, idx, to) {
     if (to === from || !this.isFree(to)) return false;
     return from.cards[idx].rank + to.top.rank === 13;
@@ -217,15 +223,19 @@ export class Pyramid extends Game {
     return false;
   }
 
-  hint() {
+  // K 單張優先，再來是能配的對（每對只列一次，從金字塔上那張指向另一張），最後是翻牌堆
+  hints() {
     const free = this.freePiles();
-    for (const a of free) if (a.top.rank === 13) return { from: a, idx: a.size - 1 };
-    // 優先消金字塔上的牌
+    const out = [];
+    for (const a of free) if (a.top.rank === 13) out.push({ from: a, idx: a.size - 1 });
     const slots = free.filter((p) => p.kind === 'slot');
-    for (const a of slots) for (const b of free) if (a !== b && a.top.rank + b.top.rank === 13) return { from: a, idx: a.size - 1, to: b };
-    for (const a of free) for (const b of free) if (a !== b && a.top.rank + b.top.rank === 13) return { from: a, idx: a.size - 1, to: b };
-    if (!this.stock.empty || (!this.waste.empty && this.canRedeal())) return { pile: this.stock };
-    return null;
+    slots.forEach((a, i) => {
+      for (const b of [...slots.slice(i + 1), ...free.filter((p) => p.kind === 'waste')]) {
+        if (a.top.rank + b.top.rank === 13) out.push({ from: a, idx: a.size - 1, to: b });
+      }
+    });
+    if (!this.stock.empty || (!this.waste.empty && this.canRedeal())) out.push({ pile: this.stock });
+    return out;
   }
 
   badge(pile) {

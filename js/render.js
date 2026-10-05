@@ -210,6 +210,7 @@ export class Renderer {
       let maxX = 0;
       let maxY = 0;
       const runStart = g.runStart(p); // 這張以下不成串，調暗
+      const liftStart = g.liftStart(p); // runStart 到這張之間成串但現在搬不動整串，淡淡調暗
       p.cards.forEach((c, i) => {
         const el = this.cardEls.get(c.id);
         const x = pp.x + offsets[i].x;
@@ -221,6 +222,7 @@ export class Renderer {
         }
         el.classList.toggle('down', !c.faceUp);
         el.classList.toggle('dim', i < runStart);
+        el.classList.toggle('over-limit', i >= runStart && i < liftStart);
         // 疊在同一個位置的牌（牌堆、基礎堆）只留最上面那張的陰影，幾十層陰影疊起來會變成一大塊黑
         el.classList.toggle('buried', pp.fan === 'none' && i < n - 1);
         el.classList.toggle('selected', g.selected === c);
@@ -243,12 +245,12 @@ export class Renderer {
     if (h.from) h.from.cards.slice(h.idx).forEach((c) => els.push(this.cardEls.get(c.id)));
     if (h.to) els.push(h.to.top ? this.cardEls.get(h.to.top.id) : this.pileEls.get(h.to.id));
     if (h.pile) els.push(h.pile.top ? this.cardEls.get(h.pile.top.id) : this.pileEls.get(h.pile.id));
-    els.forEach((el) => {
-      el.classList.remove('hint');
-      void el.offsetWidth;
-      el.classList.add('hint');
-      setTimeout(() => el.classList.remove('hint'), 1500);
-    });
+    // 連按提示會換下一個建議：先熄掉上一個建議的光暈，畫面上只亮現在這一個
+    clearTimeout(this.hintTimer);
+    this.el.querySelectorAll('.hint').forEach((el) => el.classList.remove('hint'));
+    void this.el.offsetWidth; // 讓同一張牌連續被提示時，動畫能重新播放
+    els.forEach((el) => el.classList.add('hint'));
+    this.hintTimer = setTimeout(() => els.forEach((el) => el.classList.remove('hint')), 1500);
     return true;
   }
   nudge(card) {
@@ -258,6 +260,10 @@ export class Renderer {
     void el.offsetWidth;
     el.classList.add('nudge');
     setTimeout(() => el.classList.remove('nudge'), 350);
+  }
+  // 搬不動時若規則有具體原因（例如新接龍張數超過上限），用遊戲的 message 事件顯示出來
+  explain(msg) {
+    if (msg) this.game.emit('message', msg);
   }
 
   // ---- 指標事件 ----
@@ -329,27 +335,38 @@ export class Renderer {
       this.el.classList.remove('is-dragging');
       let best = null;
       let bestA = 0;
+      let near = null; // 重疊最多的牌堆，不論放不放得下；放不下時拿來說明原因
+      let nearA = 0;
       if (!cancelled) {
         const rect = { x: d.cx, y: d.cy, w: this.dim.cw, h: this.dim.ch };
         for (const p of g.piles) {
           if (p === d.pile) continue;
           const a = overlapArea(rect, this.pileRects.get(p.id));
+          if (a > nearA) {
+            nearA = a;
+            near = p;
+          }
           if (a > bestA && g.canDrop(d.pile, d.idx, p)) {
             bestA = a;
             best = p;
           }
         }
       }
-      if (best && bestA > 0.12 * this.dim.cw * this.dim.ch) {
+      const minA = 0.12 * this.dim.cw * this.dim.ch;
+      if (best && bestA > minA) {
         g.drop(d.pile, d.idx, best);
         this.hooks.onMove && this.hooks.onMove(true);
       } else {
         this.sync(true);
+        if (near && nearA > minA) this.explain(g.blockReason(d.pile, d.idx, near));
       }
       return;
     }
     if (cancelled || d.dead) return;
     if (g.tap(d.pile, d.idx)) this.hooks.onMove && this.hooks.onMove(true);
-    else this.nudge(d.card);
+    else {
+      this.nudge(d.card);
+      this.explain(g.tapBlockReason(d.pile, d.idx));
+    }
   }
 }

@@ -277,6 +277,84 @@ test('Klondike：卡死判定在有牌可打時為真', () => {
   const g = newGame(Klondike, 8, {});
   ok(g.hasMoves());
 });
+test('Klondike：不建議在兩張都能接的牌之間來回搬', () => {
+  const g = newGame(Klondike, 1, {});
+  for (const p of g.piles) p.cards = [];
+  put(g, g.tableau[0], [card(g, 'S', 8)]);
+  put(g, g.tableau[1], [card(g, 'H', 9)]);
+  put(g, g.tableau[2], [card(g, 'D', 9)]);
+  const h = g.hint();
+  ok(h && h.from === g.tableau[0], '先把黑 8 接上去，清出一欄');
+  g.drop(h.from, h.idx, h.to);
+  eq(g.hints().length, 0, '黑 8 在兩張紅 9 之間搬來搬去沒有幫助');
+  ok(!g.hasMoves(), '判定卡死');
+  eq(g.deadEndReason(), '只剩來回搬動的步\n沒有能推進局面的移動');
+});
+test('Klondike：翻 3 張時，牌堆裡翻不到的牌不算，不會一直建議翻牌堆', () => {
+  const board = (draw3) => {
+    const g = newGame(Klondike, 1, { draw3 });
+    for (const p of g.piles) p.cards = [];
+    put(g, g.foundations[0], [card(g, 'H', 1)]);
+    const st = [card(g, 'C', 5), card(g, 'H', 2), card(g, 'D', 9)]; // 由下到上；翻 3 張時每次翻出的最上面都是梅花 5
+    put(g, g.stock, st);
+    st.forEach((c) => (c.faceUp = false));
+    return g;
+  };
+  const g3 = board(true);
+  ok(!g3.stockUseful(), '紅心 2 永遠夾在中間拿不到');
+  eq(g3.hints().length, 0);
+  ok(!g3.hasMoves(), '判定卡死');
+  eq(g3.deadEndReason(), '牌堆裡沒有能用的牌\n疊牌欄也沒有能推進的步');
+  const g1 = board(false);
+  ok(g1.stockUseful(), '翻 1 張時紅心 2 翻得到');
+  eq(g1.hint().pile, g1.stock, '建議翻牌堆');
+});
+test('Klondike：本身沒幫助、但能讓下一步收牌的移動會被建議', () => {
+  const g = newGame(Klondike, 1, {});
+  for (const p of g.piles) p.cards = [];
+  put(g, g.foundations[0], [1, 2, 3, 4, 5, 6, 7].map((r) => card(g, 'S', r)));
+  put(g, g.tableau[0], [card(g, 'S', 8), card(g, 'H', 7)]);
+  put(g, g.tableau[1], [card(g, 'C', 8)]);
+  const h = g.hint();
+  ok(h && h.from === g.tableau[0] && h.idx === 1 && h.to === g.tableau[1], '先把紅 7 移到梅花 8，好收黑桃 8');
+  ok(g.hasMoves());
+});
+test('提示清單：依幫助大小排序，收牌排最前面', () => {
+  const g = newGame(FreeCell, 1, { cells: 4 });
+  for (const p of g.piles) p.cards = [];
+  put(g, g.foundations[0], [card(g, 'S', 1)]);
+  put(g, g.tableau[0], [card(g, 'D', 9), card(g, 'S', 2)]);
+  put(g, g.tableau[1], [card(g, 'H', 9)]);
+  put(g, g.cells[0], [card(g, 'C', 8)]);
+  eq(g.hints().map((m) => m.to.id), ['f0', 't1'], '黑桃 2 收牌、再把暫存格的梅花 8 接到紅心 9');
+});
+test('FreeCell：A 被壓在兩張牌底下時，建議先挖牌，不判定卡死', () => {
+  const g = newGame(FreeCell, 1, { cells: 4 });
+  for (const p of g.piles) p.cards = [];
+  put(g, g.tableau[0], [card(g, 'S', 1), card(g, 'H', 9), card(g, 'C', 4)]);
+  ok(g.hasMoves(), '要連移兩張才收得到 A，仍算有路');
+  const h = g.hint();
+  ok(h && h.from === g.tableau[0] && h.idx === 2, '先移開最上面的梅花 4');
+  g.drop(h.from, h.idx, h.to);
+  const h2 = g.hint();
+  ok(h2 && h2.from === g.tableau[0] && h2.idx === 1, '再移開紅心 9');
+  g.drop(h2.from, h2.idx, h2.to);
+  eq(g.hint().to.kind, 'foundation', '然後收黑桃 A');
+});
+test('Klondike：點一下時，能收到基礎堆的牌優先收，不接到別欄', () => {
+  const g = newGame(Klondike, 1, {});
+  for (const p of g.piles) p.cards = [];
+  put(g, g.foundations[2], [card(g, 'H', 1)]);
+  put(g, g.tableau[0], [card(g, 'C', 10), card(g, 'H', 2)]); // 紅 2 可以收到紅心 A，也可以接黑 3
+  put(g, g.tableau[3], [card(g, 'S', 3)]);
+  put(g, g.tableau[4], [card(g, 'C', 3)]);
+  ok(g.tap(g.tableau[0], 1));
+  eq(g.pileOf(card(g, 'H', 2)).id, 'f2', '疊牌欄最外面那張');
+  put(g, g.waste, [card(g, 'H', 3)]); // 棄牌堆的紅 3 可收到紅心 2，也可以接黑 4
+  put(g, g.tableau[5], [card(g, 'S', 4)]);
+  ok(g.tap(g.waste, 0));
+  eq(g.pileOf(card(g, 'H', 3)).id, 'f2', '棄牌堆');
+});
 
 // ---------- 蜘蛛接龍 ----------
 test('Spider：同花色連續才算一串，任何大 1 的牌都能接', () => {
@@ -326,6 +404,93 @@ test('Spider：有空欄時不能發牌', () => {
   eq(g.stock.size, stock);
   ok(msg.length > 0);
 });
+// 蜘蛛殘局：cols 是每欄由下到上的點數（1 花色黑桃，可用 'H5' 指定紅心），stock 張放牌堆，其餘放基礎堆
+function spiderBoard(cols, stock, suits = 1) {
+  const g = newGame(Spider, 3, { suits });
+  for (const p of g.piles) p.cards = [];
+  const pool = [...g.cards];
+  const take = (r) => {
+    const [suit, rank] = typeof r === 'number' ? ['S', r] : [r[0], Number(r.slice(1))];
+    return pool.splice(pool.findIndex((c) => c.suit === suit && c.rank === rank), 1)[0];
+  };
+  cols.forEach((col, i) => put(g, g.tableau[i], col.map(take)));
+  const st = pool.splice(0, stock);
+  put(g, g.stock, st);
+  st.forEach((c) => (c.faceUp = false));
+  put(g, g.foundation, pool);
+  g.completed = Math.floor(g.foundation.size / 13);
+  return g;
+}
+const RUN = (hi, lo, suit = '') => Array.from({ length: hi - lo + 1 }, (_, i) => (suit ? suit + (hi - i) : hi - i));
+test('Spider：桌上不到 10 張、牌堆還有牌時判定卡死並說明原因', () => {
+  const g = spiderBoard([[11], [], [10], [1], [6], [5], [8], [7], [9], [10]], 30);
+  ok(!g.hasMoves(), '9 張填不滿 10 欄，永遠發不了牌');
+  eq(g.deadEndReason(), '桌上只剩 9 張牌\n填不滿 10 欄，無法再發牌');
+  eq(g.hint(), null, '不建議沒有意義的移動');
+  let msg = '';
+  g.on('message', (m) => (msg = m));
+  g.dealRow();
+  eq(g.stock.size, 30, '發不出去');
+  eq(msg, '桌上只剩 9 張牌，填不滿 10 欄，無法再發牌', '按牌堆時說明同樣的原因');
+  const g2 = spiderBoard([[11, 10], [], [10], [1], [6], [5], [8], [7], [9], [4]], 30);
+  ok(g2.hasMoves(), '10 張還能補滿空欄');
+  ok(!g2.deadEndReason().startsWith('桌上只剩'), '不是填不滿的情況');
+});
+test('Spider 收牌：牌堆沒發完、有背面牌、有欄不成串時不能收，並說明原因', () => {
+  const g = spiderBoard([RUN(13, 8), RUN(7, 1)], 10);
+  ok(!g.autoCollectStep());
+  eq(g.collectBlockReason(), '牌堆發完後才能自動收牌');
+  const g2 = spiderBoard([RUN(13, 8), RUN(7, 1)], 0);
+  g2.tableau[0].cards[0].faceUp = false;
+  ok(!g2.autoCollectStep());
+  eq(g2.collectBlockReason(), '所有牌都翻開後才能自動收牌');
+  const g3 = spiderBoard([[...RUN(13, 9), 'H8'], RUN(7, 1), RUN(13, 9, 'H'), [8], RUN(7, 1, 'H')], 0, 2);
+  ok(!g3.autoCollectStep(), '黑桃 9 上接紅心 8，那欄不是同花色一串');
+  eq(g3.collectBlockReason(), '每一欄都排成一串同花色連續的牌後，才能自動收牌');
+  eq(g3.moves, 0, '沒有動到任何牌');
+});
+test('Spider 收牌：每欄都是同花色一串時，以最少步數收完並獲勝', () => {
+  // 最少 2 步：4-A 接到 5、9-A 接到 10。若先把 9-A 裡的 4-A 拆去接 5，要 3 步
+  const g = spiderBoard([RUN(13, 5), RUN(9, 1), RUN(13, 10), RUN(4, 1)], 0);
+  eq(g.collectBlockReason(), '');
+  let steps = 0;
+  while (!g.won && g.autoCollectStep()) steps++;
+  ok(g.won, '收完獲勝');
+  eq(steps, 2);
+  eq(g.moves, 2);
+  const g2 = spiderBoard([RUN(13, 7, 'H'), RUN(6, 1, 'H'), RUN(13, 4), RUN(3, 1)], 0, 2);
+  while (!g2.won && g2.autoCollectStep());
+  ok(g2.won, '兩種花色');
+  eq(g2.moves, 2);
+});
+test('Spider：點一下或提示時，9-A 優先接到 K-10 那串湊成整串，而不是另一張 10', () => {
+  // 第 0 欄：單獨的 10 壓在 6 上；第 2 欄：K-Q-J-10 壓在 4 上；第 4 欄：9-A 壓在 3 上
+  const g = spiderBoard([[6, 10], [], [4, 13, 12, 11, 10], [], [3, ...RUN(9, 1)], [13], [13], [13], [13], [13]], 0);
+  const [t0, t2, t4] = [g.tableau[0], g.tableau[2], g.tableau[4]];
+  eq(g.autoTarget(t4, 1), t2, '點一下選 K-10 那欄');
+  const h = g.hint();
+  ok(h && h.from === t4 && h.idx === 1 && h.to === t2, '提示也建議同一步');
+  const before = g.completed;
+  ok(g.tap(t4, 1));
+  eq(g.completed, before + 1, '湊成 K→A 收走');
+  eq(t2.size, 1, 'K-Q-J-10 和 9-A 一起收走，只剩底下的 4');
+  eq(t0.size, 2, '另一張 10 沒被動到');
+});
+test('Spider：只剩來回搬動的步時，不給提示並判定卡死', () => {
+  const g = spiderBoard([[11, 10], [11], [13], [13], [13], [13], [13], [13], [13], [13]], 0);
+  eq(g.legalMoves().length, 1, '只能把 10 搬到另一張 J 上');
+  eq(g.hints().length, 0, '搬過去局面等於沒變');
+  ok(!g.hasMoves());
+  eq(g.deadEndReason(), '只剩來回搬動的步\n沒有能推進局面的移動');
+});
+test('Spider 收牌：收到一半按了復原，會從新的局面重新算', () => {
+  const g = spiderBoard([RUN(13, 5), RUN(9, 1), RUN(13, 10), RUN(4, 1)], 0);
+  ok(g.autoCollectStep());
+  g.undo();
+  while (!g.won && g.autoCollectStep());
+  ok(g.won);
+  eq(g.actions.length, 2, '復原掉的那步不算，實際走 2 步收完');
+});
 
 test('順序串標示：蜘蛛只有最上面同花色連續的牌算一串', () => {
   const g = newGame(Spider, 3, { suits: 4 });
@@ -363,6 +528,20 @@ test('FreeCell：暫存格數量選項', () => {
   eq(newGame(FreeCell, 1, { cells: 2 }).cells.length, 2);
   eq(newGame(FreeCell, 1, { cells: 1 }).cells.length, 1);
 });
+test('FreeCell：點一下時，能收到基礎堆的牌優先收，不接到別欄或暫存格', () => {
+  const g = newGame(FreeCell, 1, { cells: 4 });
+  for (const p of g.piles) p.cards = [];
+  put(g, g.foundations[1], [card(g, 'D', 1)]);
+  put(g, g.tableau[0], [card(g, 'C', 10), card(g, 'D', 2)]); // 紅 2 可以收到方塊 A，也可以接黑 3、進暫存格、進空欄
+  put(g, g.tableau[2], [card(g, 'S', 3)]);
+  put(g, g.tableau[5], [card(g, 'C', 3)]);
+  ok(g.tap(g.tableau[0], 1));
+  eq(g.pileOf(card(g, 'D', 2)).id, 'f1', '疊牌欄最外面那張');
+  put(g, g.cells[0], [card(g, 'D', 3)]); // 暫存格的紅 3 可收到方塊 2，也可以接黑 4
+  put(g, g.tableau[6], [card(g, 'S', 4)]);
+  ok(g.tap(g.cells[0], 0));
+  eq(g.pileOf(card(g, 'D', 3)).id, 'f1', '暫存格');
+});
 test('FreeCell：一次可搬張數 = (空暫存格+1) × 2^空欄', () => {
   const g = newGame(FreeCell, 1, { cells: 4 });
   for (const p of g.piles) p.cards = [];
@@ -384,6 +563,47 @@ test('FreeCell：超過可搬上限的串不能搬', () => {
   ok(!g.canDrop(g.tableau[0], 0, g.tableau[1]), '暫存格滿、沒空欄，一次只能搬 1 張');
   ok(g.canDrop(g.tableau[0], 2, g.tableau[1]) === false, '7 不能接 10');
 });
+// 1 個空暫存格、1 個空欄：搬到非空欄上限 (1+1)×2 = 4 張、搬到空欄 2 張；t0 底下一張不成串的 2♣，上面 5 張紅黑交錯
+function overLimitBoard() {
+  const g = newGame(FreeCell, 1, { cells: 4 });
+  for (const p of g.piles) p.cards = [];
+  put(g, g.cells[0], [card(g, 'C', 13)]);
+  put(g, g.cells[1], [card(g, 'D', 13)]);
+  put(g, g.cells[2], [card(g, 'H', 13)]);
+  put(g, g.tableau[0], [card(g, 'C', 2), card(g, 'H', 10), card(g, 'S', 9), card(g, 'H', 8), card(g, 'S', 7), card(g, 'H', 6)]);
+  put(g, g.tableau[1], [card(g, 'S', 11)]);
+  for (let i = 2; i < 7; i++) put(g, g.tableau[i], [card(g, 'C', i + 1)]);
+  return g;
+}
+test('FreeCell：串比可搬上限長時，只有最上面搬得動的幾張不淡化', () => {
+  const g = overLimitBoard();
+  const t0 = g.tableau[0];
+  eq(g.runStart(t0), 1, '紅 10 到紅 6 成串');
+  eq(g.liftStart(t0), 2, '上限 4 張，紅 10 淡淡調暗');
+  g.cells[2].cards = [];
+  eq(g.liftStart(t0), 1, '空出一格暫存格，上限變 6 張，整串都亮');
+  eq(g.liftStart(g.tableau[7]), 0, '空欄');
+  eq(g.liftStart(g.foundations[0]), 0, '疊牌欄以外不處理');
+});
+test('FreeCell：張數超過上限被擋下時說明原因', () => {
+  const g = overLimitBoard();
+  const [t0, t1, t7] = [g.tableau[0], g.tableau[1], g.tableau[7]];
+  ok(!g.canDrop(t0, 1, t1), '5 張超過上限 4 張');
+  eq(g.blockReason(t0, 1, t1), '這串 5 張，一次最多搬 4 張（空暫存格 1、空欄 1）');
+  eq(g.blockReason(t0, 1, t7), '這串 5 張，搬到空欄一次最多 2 張（空暫存格 1、其他空欄 0）');
+  eq(g.blockReason(t0, 2, t1), '', '黑 9 本來就接不上黑 J，不說張數');
+  eq(g.blockReason(t0, 0, t1), '', '2♣ 不成串，拿不起來');
+  ok(!g.tap(t0, 1), '點紅 10 沒地方去');
+  eq(g.tapBlockReason(t0, 1), g.blockReason(t0, 1, t1), '點一下時優先說明接在牌上的那一欄');
+  g.cells[2].cards = [];
+  ok(g.canDrop(t0, 1, t1), '上限變 6 張就搬得動');
+  eq(g.blockReason(t0, 1, t1), '');
+});
+test('順序串標示：其他遊戲沒有張數上限，liftStart 等於 runStart', () => {
+  const g = newGame(Spider, 5, { suits: 4 });
+  for (const t of g.tableau) eq(g.liftStart(t), g.runStart(t));
+  eq(g.tapBlockReason(g.tableau[0], g.tableau[0].size - 1), '');
+});
 test('FreeCell：只收「安全」的牌', () => {
   const g = newGame(FreeCell, 1, { cells: 4 });
   for (const p of g.piles) p.cards = [];
@@ -399,6 +619,22 @@ test('Pyramid：被壓住的牌不能選，最底排可以', () => {
   const g = newGame(Pyramid, 11, {});
   ok(!g.isFree(g.slots[0]), '頂端被壓住');
   ok(g.isFree(g.slots[27]), '底排最右可選');
+});
+test('順序串標示：金字塔只有沒被壓住的牌與棄牌堆頂不調暗', () => {
+  const g = newGame(Pyramid, 11, {});
+  const bottom = g.slots.find((s) => s.meta.row === 6);
+  const row5 = g.slots.find((s) => s.meta.row === 5);
+  eq(g.runStart(bottom), 0, '最底排沒被壓住，維持亮度');
+  eq(g.runStart(g.slots[0]), 1, '頂端被壓住，整張調暗');
+  eq(g.runStart(row5), 1, '倒數第二排被壓住');
+  for (const s of g.slots) if (s.meta.row === 6) s.cards = [];
+  eq(g.runStart(row5), 0, '下面兩張消掉後亮回來');
+  g.dealStock();
+  g.dealStock();
+  eq(g.runStart(g.waste), 1, '棄牌堆只有最上面那張能用');
+  put(g, g.done, [g.stock.top]);
+  eq(g.runStart(g.done), 1, '已消掉的牌不能再動，調暗');
+  eq(g.liftStart(bottom), g.runStart(bottom), '沒有張數上限，不會出現淡暗');
 });
 test('Pyramid：加起來 13 才能配，K 單張消', () => {
   const g = newGame(Pyramid, 11, {});
@@ -448,6 +684,19 @@ test('TriPeaks：底排面朝上、上層面朝下，移走兩張後上層翻開
   g.flipFree();
   const above = g.slotAt(2, 0.5);
   ok(above.top.faceUp);
+});
+test('TriPeaks：提示先挑拿走後能翻開新牌的', () => {
+  const g = newGame(TriPeaks, 1, {});
+  const slot = (id) => g.pileById.get(id);
+  ['p3_0', 'p3_1', 'p3_9'].forEach((id) => (slot(id).cards = []));
+  put(g, slot('p3_1'), [card(g, 'S', 6)]); // 底排最左邊已經拿走，再拿走這張就翻開上一排的第一張
+  put(g, slot('p3_9'), [card(g, 'H', 6)]); // 底排最右邊，拿走不會翻開新牌
+  g.waste.cards = [];
+  put(g, g.waste, [card(g, 'C', 7)]);
+  eq(g.flipsAfter(slot('p3_1')), 1);
+  eq(g.flipsAfter(slot('p3_9')), 0);
+  const h = g.hint();
+  ok(h && h.from === slot('p3_1'), '兩張 6 都能接，先挑會翻開新牌的');
 });
 test('TriPeaks：連消計分遞增，翻牌堆歸零', () => {
   const g = newGame(TriPeaks, 21, {});

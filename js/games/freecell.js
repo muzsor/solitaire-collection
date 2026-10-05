@@ -85,6 +85,12 @@ export class FreeCell extends Game {
     return (freeCells + 1) * Math.pow(2, emptyCols);
   }
 
+  // 單張牌 c 接不接得上疊牌欄 to（不管張數上限）
+  fitsTableau(c, to) {
+    const t = to.top;
+    return t ? isRed(t.suit) !== isRed(c.suit) && t.rank === c.rank + 1 : true;
+  }
+
   canDrop(from, idx, to) {
     if (to === from) return false;
     const c = from.cards[idx];
@@ -95,12 +101,29 @@ export class FreeCell extends Game {
       const t = to.top;
       return t ? t.suit === c.suit && t.rank === c.rank - 1 : c.rank === 1;
     }
-    if (to.kind === 'tableau') {
-      if (n > this.maxMovable(to)) return false;
-      const t = to.top;
-      return t ? isRed(t.suit) !== isRed(c.suit) && t.rank === c.rank + 1 : true;
-    }
+    if (to.kind === 'tableau') return n <= this.maxMovable(to) && this.fitsTableau(c, to);
     return false;
+  }
+
+  // 接得上、只差張數超過上限時，說明這一刻最多能搬幾張
+  blockReason(from, idx, to) {
+    if (to === from || to.kind !== 'tableau' || !this.canPick(from, idx)) return '';
+    if (to.empty && from.kind === 'tableau' && idx === 0) return ''; // 整欄搬到空欄沒有意義
+    const n = from.size - idx;
+    const max = this.maxMovable(to);
+    if (n <= max || !this.fitsTableau(from.cards[idx], to)) return '';
+    const cells = this.cells.filter((p) => p.empty).length;
+    const cols = this.tableau.filter((p) => p.empty && p !== to).length;
+    return to.empty
+      ? `這串 ${n} 張，搬到空欄一次最多 ${max} 張（空暫存格 ${cells}、其他空欄 ${cols}）`
+      : `這串 ${n} 張，一次最多搬 ${max} 張（空暫存格 ${cells}、空欄 ${cols}）`;
+  }
+
+  // 串比可搬上限長時，只有最上面那幾張算「現在搬得動」。上限以搬到非空欄計算：所有空欄都能借用，是最寬的情況
+  liftStart(pile) {
+    const start = this.runStart(pile);
+    if (pile.kind !== 'tableau') return start;
+    return Math.max(start, pile.size - this.maxMovable(null));
   }
 
   autoTarget(pile, idx) {
@@ -122,18 +145,29 @@ export class FreeCell extends Game {
     return this.foundations.every((f) => f.size === 13);
   }
 
-  // 卡死判定：所有牌都沒有任何合法去處（暫存格滿了也算進去）
-  hasMoves() {
-    for (const from of this.piles) {
-      if (from.kind === 'foundation') continue;
-      for (let i = 0; i < from.size; i++) {
-        if (!this.canPick(from, i)) continue;
-        for (const to of this.piles) {
-          if (to === from || !this.canDrop(from, i, to)) continue;
-          if (to.kind === 'tableau' && to.empty && i === 0 && from.kind === 'tableau') continue;
-          return true;
-        }
-      }
+  // 提示與卡死判定用：收牌、空出暫存格、清空一欄、把一串從接不上的牌上移開，算有幫助；
+  // 放進暫存格、移到空欄只有在「挖牌」（移開壓在下一張要收的牌上面的牌）或能鋪路時才建議，
+  // 這樣連續好幾步把牌移進暫存格、挖出底下的 A，也不會被當成卡死
+  moveValue(from, idx, to) {
+    if (to.kind === 'foundation') return 5;
+    if (from.kind === 'foundation') return 0;
+    if (from.kind === 'cell') return to.empty ? 0 : 2;
+    const dig = this.digs(from, idx) ? 1 : 0;
+    if (to.kind === 'cell') return dig;
+    if (idx === 0) return to.empty ? -1 : 3;
+    const c = from.cards[idx];
+    const p = from.cards[idx - 1];
+    const linked = isRed(p.suit) !== isRed(c.suit) && p.rank === c.rank + 1;
+    return linked || to.empty ? dig : 2;
+  }
+  // from 欄第 idx 張底下有沒有某個花色下一張要收的牌，而且壓在它上面的張數不超過空暫存格加空欄，挖得完
+  digs(from, idx) {
+    if (from.kind !== 'tableau') return false;
+    const room = this.cells.filter((p) => p.empty).length + this.tableau.filter((p) => p.empty).length;
+    for (let i = 0; i < idx; i++) {
+      const c = from.cards[i];
+      const f = this.foundations.find((p) => p.top && p.top.suit === c.suit);
+      if (c.rank === (f ? f.top.rank : 0) + 1 && from.size - 1 - i <= room) return true;
     }
     return false;
   }
